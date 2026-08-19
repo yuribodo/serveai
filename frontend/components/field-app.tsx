@@ -12,6 +12,20 @@ import {
   bookingResult, fieldFlowReducer, initialFlowState,
   type EditableField, type ServiceRequest,
 } from "@/lib/flow";
+import { getMicrophoneErrorMessage, mergeSpeechTranscript } from "@/lib/speech";
+
+type VoiceState = "idle" | "connecting" | "recording" | "finishing";
+
+const MAX_RECORDING_MS = 30_000;
+const NO_SPEECH_TIMEOUT_MS = 10_000;
+const SILENCE_TO_STOP_MS = 1_400;
+const PREVIEW_SEGMENT_MS = 2_500;
+
+function supportedRecordingOptions(): MediaRecorderOptions | undefined {
+  const mimeTypes = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
+  const mimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+  return mimeType ? { mimeType } : undefined;
+}
 
 const starterSuggestions = [
   { label: "Encontrar um chaveiro perto de mim", hint: "Disponível agora", icon: KeyRound },
@@ -102,6 +116,26 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
   value: string; onChange: (value: string) => void; onSubmit: () => void; placeholder: string; autoFocus?: boolean; quiet?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mainRecorderRef = useRef<MediaRecorder | null>(null);
+  const previewRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const previewStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const monitorTimerRef = useRef<number | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
+  const maxTimerRef = useRef<number | null>(null);
+  const noSpeechTimerRef = useRef<number | null>(null);
+  const finalRequestRef = useRef<AbortController | null>(null);
+  const previewRequestsRef = useRef(new Set<AbortController>());
+  const baseValueRef = useRef("");
+  const previewResultsRef = useRef(new Map<number, string>());
+  const previewIndexRef = useRef(0);
+  const sessionRef = useRef(0);
+  const activeRef = useRef(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceError, setVoiceError] = useState("");
+  const [supportsVoice, setSupportsVoice] = useState(true);
+
   const resize = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -110,22 +144,238 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
   };
   useEffect(resize, [value]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (value.trim()) onSubmit(); };
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (value.trim()) onSubmit(); }
+  const clearVoiceTimers = () => {
+    [previewTimerRef, maxTimerRef, noSpeechTimerRef].forEach((timerRef) => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    });
+    if (monitorTimerRef.current !== null) window.clearInterval(monitorTimerRef.current);
+    monitorTimerRef.current = null;
   };
 
+  const closeVoiceSession = () => {
+    clearVoiceTimers();
+    activeRef.current = false;
+    previewRequestsRef.current.forEach((controller) => controller.abort());
+    previewRequestsRef.current.clear();
+    finalRequestRef.current?.abort();
+    finalRequestRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    previewStreamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    previewStreamRef.current = null;
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    mainRecorderRef.current = null;
+    previewRecorderRef.current = null;
+  };
+
+  useEffect(() => {
+    setSupportsVoice(
+      "mediaDevices" in navigator
+      && "MediaRecorder" in window
+      && "AudioContext" in window,
+    );
+    return () => {
+      sessionRef.current += 1;
+      closeVoiceSession();
+    };
+  }, []);
+
+  const audioExtension = (audio: Blob) => audio.type.includes("mp4") ? "m4a" : "webm";
+
+  const requestTranscript = async (audio: Blob, controller: AbortController) => {
+    const formData = new FormData();
+    formData.append("audio", audio, `gravacao.${audioExtension(audio)}`);
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    const result = (await response.json()) as { text?: string; error?: string };
+    if (!response.ok) throw new Error(result.error || "Não consegui transcrever o áudio.");
+    return result.text?.trim() || "";
+  };
+
+  const updatePreview = async (audio: Blob, index: number, session: number) => {
+    if (audio.size === 0) return;
+    const controller = new AbortController();
+    previewRequestsRef.current.add(controller);
+    try {
+      const transcript = await requestTranscript(audio, controller);
+      if (!activeRef.current || sessionRef.current !== session || !transcript) return;
+      previewResultsRef.current.set(index, transcript);
+      const ordered: string[] = [];
+      for (let position = 0; previewResultsRef.current.has(position); position += 1) {
+        ordered.push(previewResultsRef.current.get(position) as string);
+      }
+      onChange(mergeSpeechTranscript(baseValueRef.current, ordered.join(" ")));
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        console.warn("Live transcription preview failed", error);
+      }
+    } finally {
+      previewRequestsRef.current.delete(controller);
+    }
+  };
+
+  const startPreviewSegment = (stream: MediaStream, session: number) => {
+    if (!activeRef.current || sessionRef.current !== session) return;
+    const chunks: Blob[] = [];
+    const recorder = new MediaRecorder(stream, supportedRecordingOptions());
+    const index = previewIndexRef.current;
+    previewIndexRef.current += 1;
+    previewRecorderRef.current = recorder;
+    recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
+    recorder.onstop = () => {
+      const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      if (!activeRef.current || sessionRef.current !== session) return;
+      void updatePreview(audio, index, session);
+      startPreviewSegment(stream, session);
+    };
+    recorder.start();
+    previewTimerRef.current = window.setTimeout(() => {
+      if (recorder.state !== "inactive") recorder.stop();
+    }, PREVIEW_SEGMENT_MS);
+  };
+
+  const finishRecording = () => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    clearVoiceTimers();
+    setVoiceState("finishing");
+    if (previewRecorderRef.current?.state !== "inactive") previewRecorderRef.current?.stop();
+    if (mainRecorderRef.current?.state !== "inactive") mainRecorderRef.current?.stop();
+  };
+
+  const startVoice = async () => {
+    setVoiceError("");
+    setVoiceState("connecting");
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const previewStream = new MediaStream(stream.getAudioTracks().map((track) => track.clone()));
+      const chunks: Blob[] = [];
+      const recorder = new MediaRecorder(stream, supportedRecordingOptions());
+      streamRef.current = stream;
+      previewStreamRef.current = previewStream;
+      mainRecorderRef.current = recorder;
+      baseValueRef.current = value;
+      previewResultsRef.current.clear();
+      previewIndexRef.current = 0;
+      activeRef.current = true;
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
+      recorder.onerror = () => {
+        closeVoiceSession();
+        setVoiceState("idle");
+        setVoiceError("Ocorreu um erro durante a gravação. Tente novamente.");
+      };
+      recorder.onstop = async () => {
+        const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        previewRequestsRef.current.forEach((controller) => controller.abort());
+        previewRequestsRef.current.clear();
+        stream.getTracks().forEach((track) => track.stop());
+        previewStream.getTracks().forEach((track) => track.stop());
+        void audioContextRef.current?.close();
+        audioContextRef.current = null;
+        const controller = new AbortController();
+        finalRequestRef.current = controller;
+        try {
+          const transcript = await requestTranscript(audio, controller);
+          if (sessionRef.current !== session) return;
+          if (!transcript) throw new Error("Não ouvi nenhuma fala. Toque no microfone e tente novamente.");
+          onChange(mergeSpeechTranscript(baseValueRef.current, transcript));
+          setVoiceError("");
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            setVoiceError(error instanceof Error ? error.message : "Não consegui transcrever o áudio.");
+          }
+        } finally {
+          if (sessionRef.current === session) setVoiceState("idle");
+          finalRequestRef.current = null;
+        }
+      };
+
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      let heardSpeech = false;
+      let lastSpeechAt = performance.now();
+      analyser.fftSize = 512;
+      const levels = new Uint8Array(analyser.fftSize);
+      source.connect(analyser);
+      audioContextRef.current = audioContext;
+      monitorTimerRef.current = window.setInterval(() => {
+        analyser.getByteTimeDomainData(levels);
+        let energy = 0;
+        for (const level of levels) energy += ((level - 128) / 128) ** 2;
+        const volume = Math.sqrt(energy / levels.length);
+        const now = performance.now();
+        if (volume > 0.018) {
+          heardSpeech = true;
+          lastSpeechAt = now;
+          if (noSpeechTimerRef.current !== null) window.clearTimeout(noSpeechTimerRef.current);
+          noSpeechTimerRef.current = null;
+        } else if (heardSpeech && now - lastSpeechAt >= SILENCE_TO_STOP_MS) {
+          finishRecording();
+        }
+      }, 100);
+
+      recorder.start();
+      startPreviewSegment(previewStream, session);
+      setVoiceState("recording");
+      maxTimerRef.current = window.setTimeout(finishRecording, MAX_RECORDING_MS);
+      noSpeechTimerRef.current = window.setTimeout(finishRecording, NO_SPEECH_TIMEOUT_MS);
+    } catch (error) {
+      closeVoiceSession();
+      setVoiceState("idle");
+      const errorName = error instanceof DOMException ? error.name : "";
+      setVoiceError(
+        error instanceof Error && !(error instanceof DOMException) ? error.message : getMicrophoneErrorMessage(errorName),
+      );
+    }
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (value.trim() && voiceState === "idle") onSubmit();
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (value.trim() && voiceState === "idle") onSubmit();
+    }
+  };
+
+  const toggleVoice = () => {
+    if (!supportsVoice) {
+      setVoiceError("A gravação de voz não está disponível neste navegador.");
+      return;
+    }
+    if (voiceState === "recording") finishRecording();
+    if (voiceState === "idle") void startVoice();
+  };
+
+  const voiceFeedback = voiceError
+    || (voiceState === "connecting" && "Conectando ao microfone…")
+    || (voiceState === "recording" && "Ouvindo e transcrevendo… paro quando você terminar de falar.")
+    || (voiceState === "finishing" && "Finalizando transcrição…");
+
   return (
-    <form className={`composer ${quiet ? "is-quiet" : ""}`} onSubmit={handleSubmit}>
-      <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => onChange(event.target.value)} onInput={resize} onKeyDown={handleKeyDown} placeholder={placeholder} aria-label={placeholder} autoFocus={autoFocus} />
+    <form className={`composer ${quiet ? "is-quiet" : ""} ${voiceState !== "idle" ? "is-listening" : ""}`} onSubmit={handleSubmit}>
+      <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => { setVoiceError(""); onChange(event.target.value); }} onInput={resize} onKeyDown={handleKeyDown} placeholder={voiceState === "recording" ? "Pode falar…" : placeholder} aria-label={placeholder} autoFocus={autoFocus} disabled={voiceState !== "idle"} />
+      {voiceFeedback && <p className={`voice-feedback ${voiceError ? "is-error" : ""}`} role={voiceError ? "alert" : "status"}>{voiceFeedback}</p>}
       <div className="composer-toolbar">
         <div className="composer-tools">
           <button className="composer-icon pressable" type="button" aria-label="Anexar arquivo"><Paperclip size={18} strokeWidth={1.7} /></button>
           <button className="location-pill pressable" type="button" aria-label="Usar localização"><LocateFixed size={15} strokeWidth={1.8} /><span>Localização</span></button>
         </div>
         <div className="composer-actions">
-          <button className="composer-icon pressable" type="button" aria-label="Usar microfone"><Mic size={18} strokeWidth={1.7} /></button>
-          <button className="composer-submit pressable" type="submit" aria-label="Enviar mensagem" disabled={!value.trim()}><ArrowUp size={18} strokeWidth={2.2} /></button>
+          <button className="composer-icon voice-button pressable" type="button" aria-label={voiceState === "recording" ? "Parar gravação" : "Usar microfone"} aria-pressed={voiceState !== "idle"} onClick={toggleVoice} disabled={voiceState === "connecting" || voiceState === "finishing"}><span className="voice-pulse" aria-hidden="true" /><Mic size={18} strokeWidth={1.7} /></button>
+          <button className="composer-submit pressable" type="submit" aria-label="Enviar mensagem" disabled={!value.trim() || voiceState !== "idle"}><ArrowUp size={18} strokeWidth={2.2} /></button>
         </div>
       </div>
     </form>

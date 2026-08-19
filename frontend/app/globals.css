@@ -303,6 +303,7 @@ textarea { resize: none; }
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 .composer:focus-within { border-color: #b8b8b2; box-shadow: 0 14px 42px rgb(20 20 20 / 9%), 0 1px 2px rgb(20 20 20 / 4%); }
+.composer.is-listening { border-color: var(--foreground); box-shadow: 0 14px 42px rgb(20 20 20 / 11%), 0 1px 2px rgb(20 20 20 / 5%); }
 .composer textarea {
   width: 100%;
   min-height: 34px;
@@ -315,6 +316,7 @@ textarea { resize: none; }
   font-size: 15px;
   line-height: 1.5;
 }
+.composer textarea:disabled { opacity: 1; -webkit-text-fill-color: var(--foreground); }
 .composer textarea::placeholder { color: #8d8d87; }
 .composer-toolbar { min-height: 38px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
 .composer-tools, .composer-actions { display: flex; align-items: center; gap: 4px; }
@@ -328,6 +330,17 @@ textarea { resize: none; }
   color: var(--muted);
   background: transparent;
   cursor: pointer;
+}
+.voice-button { position: relative; }
+.voice-button[aria-pressed="true"] { color: var(--inverse-foreground); background: var(--inverse); }
+.voice-button:disabled { cursor: wait; opacity: .7; }
+.voice-pulse { position: absolute; inset: 4px; border: 1px solid currentColor; border-radius: 8px; opacity: 0; }
+.voice-button[aria-pressed="true"] .voice-pulse { animation: voice-pulse 1.4s var(--ease-out) infinite; }
+.voice-feedback { margin: 3px 2px 7px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.voice-feedback.is-error { color: #9f2d20; }
+@keyframes voice-pulse {
+  0% { opacity: .65; transform: scale(.82); }
+  75%, 100% { opacity: 0; transform: scale(1.35); }
 }
 .location-pill {
   min-height: 34px;

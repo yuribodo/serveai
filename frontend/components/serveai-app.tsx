@@ -562,7 +562,7 @@ export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string })
             clientMessageId: action.clientMessageId,
             ...(action.location ? { location: action.location } : {}),
           })
-        : await client.addMessage(action.conversationId, {
+        : await client.continueConversation(conversation!, {
             message: action.message,
             clientMessageId: action.clientMessageId,
           });
@@ -580,7 +580,7 @@ export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string })
     } finally {
       if (session.current === currentSession) setIsPosting(false);
     }
-  }, [client]);
+  }, [client, conversation]);
 
   const refresh = useCallback(async (conversationId: string) => {
     const currentSession = session.current;

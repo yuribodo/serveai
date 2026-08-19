@@ -202,6 +202,44 @@ export class ServeAIClient {
     });
   }
 
+  /**
+   * Continues a chat across ephemeral serverless instances. The normal endpoint is
+   * attempted first; a missing in-memory conversation is rebuilt with its complete
+   * text context so the user never loses the demo flow.
+   */
+  async continueConversation(
+    previous: ChatConversation,
+    input: AddMessageInput,
+  ): Promise<ChatConversation> {
+    try {
+      return await this.addMessage(previous.conversationId, input);
+    } catch (error) {
+      if (!(error instanceof ServeAIAPIError) || error.status !== 404) throw error;
+
+      const transcript = previous.timeline
+        .filter((item): item is TextMessage => item.type === "message")
+        .map((item) => `${item.role === "user" ? "Usuário" : "ServeAI"}: ${item.content}`)
+        .join("\n");
+      const rebuilt = await this.createConversation({
+        clientMessageId: input.clientMessageId,
+        message: [
+          "Continue esta conversa preservando todo o contexto abaixo.",
+          transcript,
+          `Nova mensagem do usuário: ${input.message}`,
+        ].join("\n\n"),
+      });
+      const rebuiltTimeline = rebuilt.timeline.map((item) =>
+        item.type === "message" && item.role === "user"
+          ? { ...item, content: input.message }
+          : item,
+      );
+      return normalizeConversation({
+        ...rebuilt,
+        timeline: [...previous.timeline, ...rebuiltTimeline],
+      });
+    }
+  }
+
   getConversation(conversationId: string): Promise<ChatConversation> {
     if (this.demo) return this.demo.getConversation(conversationId);
     return this.request(`/api/v1/conversations/${encodeURIComponent(conversationId)}`);

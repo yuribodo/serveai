@@ -104,6 +104,51 @@ describe("ServeAIClient", () => {
     });
   });
 
+  it("rebuilds a missing serverless conversation without losing the visible timeline", async () => {
+    const rebuilt: ChatConversation = {
+      ...snapshot,
+      conversationId: "conversation-2",
+      timeline: [
+        {
+          id: "message-2",
+          type: "message",
+          role: "user",
+          content: "contexto interno",
+          createdAt: "2026-08-19T12:01:00Z",
+        },
+        {
+          id: "message-3",
+          type: "message",
+          role: "assistant",
+          content: "Qual é a sua localização?",
+          createdAt: "2026-08-19T12:01:01Z",
+        },
+      ],
+    };
+    let call = 0;
+    const fetcher = vi.fn(async () => {
+      call += 1;
+      return call === 1
+        ? new Response(JSON.stringify({ detail: "Conversa não encontrada." }), { status: 404 })
+        : new Response(JSON.stringify(rebuilt), { status: 201 });
+    });
+    const client = new ServeAIClient("https://api.serveai.test", fetcher);
+
+    const result = await client.continueConversation(snapshot, {
+      message: "Estou em Pinheiros",
+      clientMessageId: "client-2",
+    });
+
+    expect(result.conversationId).toBe("conversation-2");
+    expect(result.timeline.map((item) => item.type === "message" ? item.content : "")).toEqual([
+      "Preciso de um chaveiro",
+      "Estou em Pinheiros",
+      "Qual é a sua localização?",
+    ]);
+    expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain("Preciso de um chaveiro");
+    expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain("Estou em Pinheiros");
+  });
+
   it("runs a clearly labelled local demo when no backend URL is configured", async () => {
     const client = new ServeAIClient(null);
     const created = await client.createConversation({

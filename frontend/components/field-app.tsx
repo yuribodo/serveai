@@ -1,39 +1,23 @@
 "use client";
 
 import {
-  ArrowUp,
-  CalendarDays,
-  Check,
-  ChevronDown,
-  Circle,
-  CircleDashed,
-  Clock3,
-  KeyRound,
-  LocateFixed,
-  MapPin,
-  Mic,
-  PencilLine,
-  RotateCcw,
-  Search,
-  Star,
-  WalletCards,
-  Wrench,
+  ArrowUp, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
+  KeyRound, LocateFixed, MapPin, Menu, MessageSquare, Mic,
+  MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
+  Settings, Star, UserRound, WalletCards, Wrench,
 } from "lucide-react";
-import type { ComponentType, FormEvent, KeyboardEvent } from "react";
+import type { ComponentType, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
-  bookingResult,
-  fieldFlowReducer,
-  initialFlowState,
-  isRequestReady,
-  type EditableField,
-  type ServiceRequest,
+  bookingResult, fieldFlowReducer, initialFlowState,
+  type EditableField, type ServiceRequest,
 } from "@/lib/flow";
 
 const starterSuggestions = [
-  { label: "Chaveiro perto de mim", icon: KeyRound },
-  { label: "Perdi minha chave", icon: LocateFixed },
-  { label: "Chaveiro hoje à tarde", icon: Clock3 },
+  { label: "Encontrar um chaveiro perto de mim", hint: "Disponível agora", icon: KeyRound },
+  { label: "Perdi minha chave", hint: "Resolver com urgência", icon: LocateFixed },
+  { label: "Minha porta está travada", hint: "Buscar assistência", icon: Wrench },
+  { label: "Chaveiro hoje à tarde", hint: "Comparar profissionais", icon: CalendarDays },
 ];
 
 const problemOptions = ["Perdi a chave", "A porta travou", "A chave quebrou", "Outro problema"];
@@ -52,134 +36,122 @@ const fieldMeta: Record<
 
 const activitySteps = [
   { label: "Pesquisando nas proximidades", detail: "Pinheiros", time: "09:42" },
-  { label: "Encontrados 14 profissionais", detail: "abertos agora", time: "09:42" },
-  { label: "Selecionados 3 bons candidatos", detail: "melhor compatibilidade", time: "09:43" },
-  { label: "Entramos em contato com 3", detail: "por e-mail", time: "09:43" },
+  { label: "14 profissionais encontrados", detail: "abertos agora", time: "09:42" },
+  { label: "3 candidatos selecionados", detail: "melhor compatibilidade", time: "09:43" },
+  { label: "Profissionais contatados", detail: "3 mensagens enviadas", time: "09:43" },
   { label: "Aguardando respostas", detail: "", time: "" },
 ];
 
-function Header({ stage, onReset }: { stage: string; onReset: () => void }) {
+function BrandMark() {
+  return <span className="brand-mark" aria-hidden="true">F</span>;
+}
+
+function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => void; onReset: () => void }) {
   return (
-    <header className="app-header">
-      <div className="header-inner">
-        <button className="wordmark pressable" type="button" onClick={onReset} aria-label="Ir para o início">
-          FIELD
-        </button>
-        <div className="header-context" aria-label={`Etapa atual: ${stage}`}>
-          {stage === "start" ? "AGENTE PARA SERVIÇOS LOCAIS" : "TAREFA EM ANDAMENTO"}
-        </div>
-        {stage !== "start" ? (
-          <button className="new-task pressable" type="button" onClick={onReset}>
-            <RotateCcw size={15} strokeWidth={1.7} aria-hidden="true" />
-            <span>Nova solicitação</span>
+    <>
+      <button className={`sidebar-backdrop ${open ? "is-visible" : ""}`} type="button" onClick={onClose} aria-label="Fechar menu" tabIndex={open ? 0 : -1} />
+      <aside className={`sidebar ${open ? "is-open" : ""}`} aria-label="Navegação principal">
+        <div className="sidebar-top">
+          <button className="sidebar-brand pressable" type="button" onClick={onReset} aria-label="Ir para o início">
+            <BrandMark /><span>FIELD</span>
           </button>
-        ) : (
-          <span className="header-status"><span aria-hidden="true" />Disponível</span>
-        )}
+          <button className="icon-button sidebar-close pressable" type="button" onClick={onClose} aria-label="Recolher menu">
+            <PanelLeftClose size={18} strokeWidth={1.7} />
+          </button>
+        </div>
+
+        <button className="new-chat-button pressable" type="button" onClick={onReset}>
+          <Plus size={17} strokeWidth={1.8} /><span>Nova solicitação</span><kbd>⌘ K</kbd>
+        </button>
+
+        <nav className="sidebar-nav" aria-label="Conversas recentes">
+          <p>Recentes</p>
+          <button className="history-item is-active" type="button">
+            <MessageSquare size={15} strokeWidth={1.6} /><span>Chaveiro em Pinheiros</span><MoreHorizontal className="history-more" size={16} strokeWidth={1.7} />
+          </button>
+          <button className="history-item" type="button"><MessageSquare size={15} strokeWidth={1.6} /><span>Manutenção do ar-condicionado</span></button>
+          <button className="history-item" type="button"><MessageSquare size={15} strokeWidth={1.6} /><span>Orçamento para encanador</span></button>
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="sidebar-footer-item pressable" type="button"><Settings size={17} strokeWidth={1.6} /><span>Configurações</span></button>
+          <button className="account-button pressable" type="button">
+            <span className="account-avatar"><UserRound size={16} strokeWidth={1.7} /></span>
+            <span><strong>Mario</strong><small>Plano pessoal</small></span><MoreHorizontal size={17} strokeWidth={1.7} />
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function ChatHeader({ stage, onOpenMenu, onReset }: { stage: string; onOpenMenu: () => void; onReset: () => void }) {
+  const status = stage === "work" ? "Executando" : stage === "result" ? "Concluído" : "Online";
+  return (
+    <header className="chat-header">
+      <div className="chat-header-left">
+        <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
+        <div className="chat-title"><strong>{stage === "start" ? "FIELD" : "Chaveiro em Pinheiros"}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
       </div>
+      <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Novo chat</span></button>
     </header>
   );
 }
 
-function Composer({
-  value,
-  onChange,
-  onSubmit,
-  placeholder,
-  autoFocus = false,
-  onEnterKey,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-  placeholder: string;
-  autoFocus?: boolean;
-  onEnterKey?: () => void;
+function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, quiet = false }: {
+  value: string; onChange: (value: string) => void; onSubmit: () => void; placeholder: string; autoFocus?: boolean; quiet?: boolean;
 }) {
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSubmit();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resize = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
   };
+  useEffect(resize, [value]);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") onEnterKey?.();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (value.trim()) onSubmit(); };
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (value.trim()) onSubmit(); }
   };
 
   return (
-    <form className="composer" onSubmit={handleSubmit}>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        autoFocus={autoFocus}
-      />
-      <button className="composer-utility pressable" type="button" aria-label="Usar microfone">
-        <Mic size={18} strokeWidth={1.6} aria-hidden="true" />
-      </button>
-      <button
-        className="composer-submit pressable"
-        type="submit"
-        aria-label="Enviar mensagem"
-        disabled={!value.trim()}
-      >
-        <ArrowUp size={18} strokeWidth={2} aria-hidden="true" />
-      </button>
+    <form className={`composer ${quiet ? "is-quiet" : ""}`} onSubmit={handleSubmit}>
+      <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => onChange(event.target.value)} onInput={resize} onKeyDown={handleKeyDown} placeholder={placeholder} aria-label={placeholder} autoFocus={autoFocus} />
+      <div className="composer-toolbar">
+        <div className="composer-tools">
+          <button className="composer-icon pressable" type="button" aria-label="Anexar arquivo"><Paperclip size={18} strokeWidth={1.7} /></button>
+          <button className="location-pill pressable" type="button" aria-label="Usar localização"><LocateFixed size={15} strokeWidth={1.8} /><span>Localização</span></button>
+        </div>
+        <div className="composer-actions">
+          <button className="composer-icon pressable" type="button" aria-label="Usar microfone"><Mic size={18} strokeWidth={1.7} /></button>
+          <button className="composer-submit pressable" type="submit" aria-label="Enviar mensagem" disabled={!value.trim()}><ArrowUp size={18} strokeWidth={2.2} /></button>
+        </div>
+      </div>
     </form>
   );
 }
 
-function StartScreen({
-  onStart,
-  onKeyboardStart,
-}: {
-  onStart: (message: string) => void;
-  onKeyboardStart: () => void;
-}) {
+function ComposerDock({ children }: { children: ReactNode }) {
+  return <div className="composer-dock">{children}<p>O FIELD pode cometer erros. Confirme informações importantes.</p></div>;
+}
+
+function StartScreen({ onStart }: { onStart: (message: string) => void }) {
   const [message, setMessage] = useState("");
-
-  const submit = () => {
-    if (message.trim()) onStart(message);
-  };
-
+  const submit = () => message.trim() && onStart(message);
   return (
     <section className="start-screen stage-panel" aria-labelledby="start-title">
-      <div className="start-copy">
-        <p className="overline">PEÇA UMA VEZ. O FIELD RESOLVE.</p>
-        <h1 id="start-title">O que você precisa?</h1>
-        <p>
-          Descreva o serviço. Nós encontramos, entramos em contato e cuidamos do agendamento.
-        </p>
-      </div>
-
-      <div className="start-actions">
-        <Composer
-          value={message}
-          onChange={setMessage}
-          onSubmit={submit}
-          onEnterKey={onKeyboardStart}
-          placeholder="Conte ao FIELD o que você precisa..."
-          autoFocus
-        />
-        <button
-          className="location-action pressable"
-          type="button"
-          onClick={() => setMessage("Preciso de um chaveiro em Pinheiros hoje à tarde")}
-        >
-          <LocateFixed size={16} strokeWidth={1.7} aria-hidden="true" />
-          Usar minha localização
-        </button>
-      </div>
-
-      <div className="suggestion-section" aria-labelledby="suggestions-title">
-        <p id="suggestions-title">EXPERIMENTE</p>
-        <div className="suggestion-grid">
-          {starterSuggestions.map(({ label, icon: Icon }) => (
+      <div className="start-content">
+        <div className="start-brand"><BrandMark /></div>
+        <h1 id="start-title">O que vamos resolver hoje?</h1>
+        <p>Descreva o que você precisa. Eu encontro, comparo e agendo o melhor profissional para você.</p>
+        <div className="start-composer"><Composer value={message} onChange={setMessage} onSubmit={submit} placeholder="Peça qualquer serviço local" autoFocus /></div>
+        <div className="suggestion-grid" aria-label="Sugestões">
+          {starterSuggestions.map(({ label, hint, icon: Icon }) => (
             <button className="suggestion-card pressable" type="button" key={label} onClick={() => onStart(label)}>
-              <span className="suggestion-icon"><Icon size={17} strokeWidth={1.6} aria-hidden="true" /></span>
-              <span>{label}</span>
-              <ArrowUp className="suggestion-arrow" size={15} strokeWidth={1.7} aria-hidden="true" />
+              <span className="suggestion-icon"><Icon size={17} strokeWidth={1.7} /></span>
+              <span className="suggestion-copy"><strong>{label}</strong><small>{hint}</small></span>
+              <ArrowUp className="suggestion-arrow" size={15} strokeWidth={1.8} />
             </button>
           ))}
         </div>
@@ -188,333 +160,146 @@ function StartScreen({
   );
 }
 
-function ParameterRow({
-  field,
-  value,
-  onChange,
-}: {
-  field: EditableField;
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function UserMessage({ children }: { children: ReactNode }) {
+  return <div className="user-message-wrap"><div className="user-message">{children}</div></div>;
+}
+
+function AgentMessage({ children }: { children: ReactNode }) {
+  return <div className="agent-message"><BrandMark /><div className="agent-content">{children}</div></div>;
+}
+
+function ParameterRow({ field, value, onChange }: { field: EditableField; value: string; onChange: (value: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const { label, icon: Icon } = fieldMeta[field];
-
   useEffect(() => setDraft(value), [value]);
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  const save = () => {
-    if (draft.trim()) onChange(draft);
-    else setDraft(value);
-    setEditing(false);
-  };
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  const save = () => { if (draft.trim()) onChange(draft); else setDraft(value); setEditing(false); };
 
   return (
     <div className={`parameter-row ${!value ? "is-empty" : ""}`}>
-      <Icon size={16} strokeWidth={1.6} aria-hidden="true" />
-      <span className="parameter-label">{label}</span>
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="parameter-input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={save}
-          onKeyDown={(event) => {
+      <span className="parameter-icon"><Icon size={15} strokeWidth={1.7} /></span>
+      <span className="parameter-copy"><small>{label}</small>
+        {editing ? (
+          <input ref={inputRef} className="parameter-input" value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={save} onKeyDown={(event) => {
             if (event.key === "Enter") save();
-            if (event.key === "Escape") {
-              setDraft(value);
-              setEditing(false);
-            }
-          }}
-          aria-label={`Editar ${label.toLowerCase()}`}
-        />
-      ) : (
-        <span className="parameter-value">{value || "Ainda não informado"}</span>
-      )}
-      <button
-        className="edit-parameter pressable"
-        type="button"
-        onClick={() => setEditing(true)}
-        aria-label={`Alterar ${label.toLowerCase()}`}
-      >
-        <PencilLine size={14} strokeWidth={1.7} aria-hidden="true" />
-        <span>Alterar</span>
-      </button>
+            if (event.key === "Escape") { setDraft(value); setEditing(false); }
+          }} aria-label={`Editar ${label.toLowerCase()}`} />
+        ) : <strong>{value || "Ainda não informado"}</strong>}
+      </span>
+      <button className="edit-parameter pressable" type="button" onClick={() => setEditing(true)} aria-label={`Alterar ${label.toLowerCase()}`}><PencilLine size={14} strokeWidth={1.7} /></button>
     </div>
   );
 }
 
-function RequestSummary({
-  request,
-  onUpdate,
-  compact = false,
-}: {
-  request: ServiceRequest;
-  onUpdate?: (field: EditableField, value: string) => void;
-  compact?: boolean;
-}) {
-  if (compact) {
-    return (
-      <div className="compact-request" aria-label="Resumo da solicitação">
-        <div><MapPin size={15} strokeWidth={1.6} aria-hidden="true" /><span>{request.location}</span></div>
-        <div><Clock3 size={15} strokeWidth={1.6} aria-hidden="true" /><span>{request.availability}</span></div>
-        <div><WalletCards size={15} strokeWidth={1.6} aria-hidden="true" /><span>{request.budget}</span></div>
-        <div><KeyRound size={15} strokeWidth={1.6} aria-hidden="true" /><span>{request.service}</span></div>
-      </div>
-    );
-  }
-
+function RequestSummary({ request, onUpdate, compact = false }: { request: ServiceRequest; onUpdate?: (field: EditableField, value: string) => void; compact?: boolean }) {
+  if (compact) return (
+    <div className="compact-request" aria-label="Resumo da solicitação">
+      <span><MapPin size={14} />{request.location}</span><span><Clock3 size={14} />{request.availability}</span><span><WalletCards size={14} />{request.budget}</span>
+    </div>
+  );
   return (
     <section className="request-card" aria-labelledby="request-title">
-      <div className="card-heading">
-        <div>
-          <p className="card-kicker">SOLICITAÇÃO</p>
-          <h2 id="request-title">O que entendemos</h2>
-        </div>
-        <span className="understood-badge"><Check size={13} strokeWidth={2} aria-hidden="true" />Em edição</span>
-      </div>
-      <div className="parameter-list">
-        {(Object.keys(fieldMeta) as EditableField[]).map((field) => (
-          <ParameterRow
-            key={field}
-            field={field}
-            value={request[field]}
-            onChange={(value) => onUpdate?.(field, value)}
-          />
-        ))}
-      </div>
+      <div className="card-heading"><div><span className="card-kicker">SOLICITAÇÃO</span><h2 id="request-title">Detalhes entendidos</h2></div><span className="understood-badge"><Check size={13} strokeWidth={2.2} />Atualizado</span></div>
+      <div className="parameter-list">{(Object.keys(fieldMeta) as EditableField[]).map((field) => (
+        <ParameterRow key={field} field={field} value={request[field]} onChange={(value) => onUpdate?.(field, value)} />
+      ))}</div>
     </section>
   );
 }
 
 function OptionChips({ options, onSelect }: { options: string[]; onSelect: (value: string) => void }) {
-  return (
-    <div className="option-chips">
-      {options.map((option) => (
-        <button className="option-chip pressable" type="button" onClick={() => onSelect(option)} key={option}>
-          {option}
-        </button>
-      ))}
-    </div>
-  );
+  return <div className="option-chips">{options.map((option) => <button className="option-chip pressable" type="button" onClick={() => onSelect(option)} key={option}>{option}</button>)}</div>;
 }
 
-function CollectScreen({
-  originalRequest,
-  request,
-  onUpdate,
-  onBegin,
-}: {
-  originalRequest: string;
-  request: ServiceRequest;
-  onUpdate: (field: EditableField, value: string) => void;
-  onBegin: () => void;
-}) {
+function CollectScreen({ originalRequest, request, onUpdate, onBegin }: { originalRequest: string; request: ServiceRequest; onUpdate: (field: EditableField, value: string) => void; onBegin: () => void }) {
   const [reply, setReply] = useState("");
   const question = !request.problem ? "problem" : !request.budget ? "budget" : "ready";
-
-  const answer = (value: string) => {
-    if (question === "problem") onUpdate("problem", value);
-    if (question === "budget") onUpdate("budget", value);
-    setReply("");
-  };
-
-  const submitReply = () => {
-    if (reply.trim() && question !== "ready") answer(reply);
-  };
-
+  const answer = (value: string) => { if (question === "problem") onUpdate("problem", value); if (question === "budget") onUpdate("budget", value); setReply(""); };
+  const submitReply = () => reply.trim() && question !== "ready" && answer(reply);
   return (
-    <section className="conversation-screen stage-panel" aria-label="Coleta de informações">
+    <section className="conversation-screen stage-panel" aria-label="Conversa">
       <div className="conversation-thread">
-        <div className="user-message-wrap">
-          <div className="user-message">{originalRequest}</div>
-          <span className="message-time">AGORA</span>
-        </div>
-
-        <div className="agent-message">
-          <p>Entendi. Organizei o que você já informou.</p>
-          <span>Confira os detalhes — você pode ajustar qualquer item.</span>
-        </div>
-
-        <RequestSummary request={request} onUpdate={onUpdate} />
-
-        <div className="agent-question" aria-live="polite">
-          {question === "problem" && (
-            <>
-              <p className="question-count">SÓ MAIS DUAS INFORMAÇÕES</p>
-              <h2>O que aconteceu com a fechadura?</h2>
-              <OptionChips options={problemOptions} onSelect={answer} />
-            </>
-          )}
-          {question === "budget" && (
-            <>
-              <p className="question-count">ÚLTIMA INFORMAÇÃO</p>
-              <h2>Quanto você gostaria de gastar?</h2>
-              <OptionChips options={budgetOptions} onSelect={answer} />
-            </>
-          )}
-          {question === "ready" && (
-            <div className="ready-block">
-              <span className="ready-icon"><Check size={18} strokeWidth={2} aria-hidden="true" /></span>
-              <div>
-                <h2>Tenho tudo o que preciso.</h2>
-                <p>Vou procurar profissionais que atendam dentro dessas condições.</p>
-              </div>
+        <UserMessage>{originalRequest}</UserMessage>
+        <AgentMessage>
+          <p>Entendi. Já organizei as informações que vieram na sua mensagem.</p>
+          <p className="muted-copy">Você pode revisar e editar qualquer detalhe antes de eu começar.</p>
+          <RequestSummary request={request} onUpdate={onUpdate} />
+        </AgentMessage>
+        {request.problem && <UserMessage>{request.problem}</UserMessage>}
+        {question === "problem" && <AgentMessage><p>O que aconteceu com a fechadura?</p><p className="muted-copy">Isso me ajuda a encontrar o profissional certo.</p><OptionChips options={problemOptions} onSelect={answer} /></AgentMessage>}
+        {question === "budget" && <AgentMessage><p>Perfeito. Quanto você gostaria de gastar?</p><OptionChips options={budgetOptions} onSelect={answer} /></AgentMessage>}
+        {request.budget && <UserMessage>{request.budget}</UserMessage>}
+        {question === "ready" && (
+          <AgentMessage>
+            <p>Ótimo, tenho tudo o que preciso.</p>
+            <p className="muted-copy">Posso comparar os profissionais disponíveis e cuidar do agendamento para você.</p>
+            <div className="ready-actions">
               <button className="primary-button pressable" type="button" onClick={onBegin}>
-                Encontrar chaveiro
-                <Search size={17} strokeWidth={1.8} aria-hidden="true" />
+                <Search size={16} strokeWidth={1.9} />
+                Começar busca
               </button>
+              <span>Preço, disponibilidade e avaliações serão considerados.</span>
             </div>
-          )}
-        </div>
+          </AgentMessage>
+        )}
       </div>
-
-      {question !== "ready" && (
-        <div className="sticky-composer">
-          <Composer
-            value={reply}
-            onChange={setReply}
-            onSubmit={submitReply}
-            placeholder="Responda aqui..."
-          />
-          <p>O FIELD pode cometer erros. Confirme informações importantes.</p>
-        </div>
-      )}
+      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} placeholder="Responda ao FIELD" quiet /></ComposerDock>}
     </section>
   );
 }
 
 function ActivityIcon({ status }: { status: "done" | "active" | "pending" }) {
-  if (status === "done") return <Check size={15} strokeWidth={2.1} aria-hidden="true" />;
-  if (status === "active") return <CircleDashed className="activity-spinner" size={16} strokeWidth={1.7} aria-hidden="true" />;
-  return <Circle size={14} strokeWidth={1.5} aria-hidden="true" />;
+  if (status === "done") return <Check size={14} strokeWidth={2.2} />;
+  if (status === "active") return <CircleDashed className="activity-spinner" size={16} strokeWidth={1.8} />;
+  return <Circle size={13} strokeWidth={1.5} />;
 }
 
-function WorkScreen({
-  request,
-  phase,
-  onAdjust,
-}: {
-  request: ServiceRequest;
-  phase: number;
-  onAdjust: () => void;
-}) {
+function WorkScreen({ originalRequest, request, phase, onAdjust }: { originalRequest: string; request: ServiceRequest; phase: number; onAdjust: () => void }) {
   const currentLabel = activitySteps[Math.min(phase, activitySteps.length - 1)].label;
-
   return (
-    <section className="work-screen stage-panel" aria-labelledby="work-title">
-      <RequestSummary request={request} compact />
-
-      <div className="work-heading">
-        <span className="work-icon"><Search size={19} strokeWidth={1.7} aria-hidden="true" /></span>
-        <div>
-          <p className="card-kicker">FIELD ESTÁ TRABALHANDO</p>
-          <h1 id="work-title">Encontrando um chaveiro</h1>
-          <p>Buscando profissionais verificados que atendam às suas condições.</p>
-        </div>
+    <section className="conversation-screen stage-panel" aria-labelledby="work-title">
+      <div className="conversation-thread">
+        <UserMessage>{originalRequest}</UserMessage>
+        <AgentMessage>
+          <p id="work-title">Pode deixar. Estou encontrando o melhor chaveiro para você.</p>
+          <RequestSummary request={request} compact />
+          <div className="activity-card" aria-live="polite" aria-label={`Progresso: ${currentLabel}`}>
+            <div className="activity-heading"><span className="work-icon"><Search size={17} strokeWidth={1.8} /></span><div><strong>Buscando profissionais</strong><small>Execução em tempo real</small></div><span className="live-pill"><i />AO VIVO</span></div>
+            <div className="activity-list">{activitySteps.map((step, index) => {
+              const status = index < phase ? "done" : index === phase ? "active" : "pending";
+              return <div className={`activity-row is-${status}`} key={step.label}><span className="activity-status"><ActivityIcon status={status} /></span><div className="activity-copy"><span>{step.label}</span>{step.detail && <small>{step.detail}</small>}</div><time>{status === "done" ? step.time : ""}</time></div>;
+            })}</div>
+            <div className="activity-footer"><span>Você pode sair — eu aviso quando concluir.</span><button type="button" onClick={onAdjust}>Ajustar pedido</button></div>
+          </div>
+        </AgentMessage>
       </div>
-
-      <div className="activity-card" aria-live="polite" aria-label={`Progresso: ${currentLabel}`}>
-        {activitySteps.map((step, index) => {
-          const status = index < phase ? "done" : index === phase ? "active" : "pending";
-          return (
-            <div className={`activity-row is-${status}`} key={step.label}>
-              <span className="activity-status"><ActivityIcon status={status} /></span>
-              <div className="activity-copy">
-                <span>{step.label}</span>
-                {step.detail && <small>{step.detail}</small>}
-              </div>
-              <time>{status === "done" ? step.time : ""}</time>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="autonomy-note">
-        <p>Você não precisa ficar aqui.</p>
-        <span>Avisaremos assim que alguém responder.</span>
-      </div>
-
-      <button className="secondary-button pressable" type="button" onClick={onAdjust}>
-        <PencilLine size={15} strokeWidth={1.7} aria-hidden="true" />
-        Ajustar solicitação
-      </button>
+      <ComposerDock><div className="waiting-composer"><CircleDashed className="activity-spinner" size={16} />FIELD está trabalhando na sua solicitação</div></ComposerDock>
     </section>
   );
 }
 
-function ResultScreen({ onReset }: { onReset: () => void }) {
+function ResultScreen({ originalRequest, request, onReset }: { originalRequest: string; request: ServiceRequest; onReset: () => void }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-
   return (
-    <section className="result-screen stage-panel" aria-labelledby="result-title">
-      <div className="result-intro">
-        <span className="success-mark"><Check size={23} strokeWidth={2.2} aria-hidden="true" /></span>
-        <p className="card-kicker">RESOLVIDO</p>
-        <h1 id="result-title">Reservado com sucesso.</h1>
-        <p>Encontramos uma opção dentro das suas preferências e cuidamos do agendamento.</p>
+    <section className="conversation-screen result-screen stage-panel" aria-labelledby="result-title">
+      <div className="conversation-thread">
+        <UserMessage>{originalRequest}</UserMessage>
+        <AgentMessage>
+          <div className="result-message-heading"><span className="success-mark"><Check size={18} strokeWidth={2.3} /></span><div><span className="card-kicker">CONCLUÍDO</span><h1 id="result-title">Encontrei e reservei uma ótima opção.</h1></div></div>
+          <p className="muted-copy">O profissional confirmou o serviço dentro do seu orçamento e horário.</p>
+          <article className="booking-card">
+            <div className="provider-heading"><span className="provider-icon"><KeyRound size={21} strokeWidth={1.8} /></span><div className="provider-copy"><div className="provider-name-line"><h2>{bookingResult.provider}</h2><span className="verified-badge"><Check size={10} strokeWidth={2.5} /></span></div><p><Star size={13} fill="currentColor" />{bookingResult.rating} <span>({bookingResult.reviewCount} avaliações) · {bookingResult.distance}</span></p></div><span className="confirmed-pill"><Check size={12} />Confirmado</span></div>
+            <div className="booking-numbers"><div><span>PREÇO</span><strong>{bookingResult.price}</strong></div><div><span>CHEGADA</span><strong>{bookingResult.arrival}</strong></div><div><span>LOCAL</span><strong>Pinheiros</strong></div></div>
+            <div className="compatibility-list"><span><Check size={14} />Dentro do seu orçamento</span><span><Check size={14} />Disponível hoje</span><span><Check size={14} />Prestador verificado</span></div>
+            <button className="booking-action pressable" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}><span><CalendarDays size={16} />Ver compromisso</span><ChevronDown className={detailsOpen ? "is-rotated" : ""} size={17} /></button>
+            {detailsOpen && <div className="appointment-details"><span><CalendarDays size={16} /><span><small>DATA E HORÁRIO</small>Hoje · 15:30–16:30</span></span><span><MapPin size={16} /><span><small>LOCAL</small>{request.location}</span></span></div>}
+          </article>
+          <div className="confirmation-card"><span><Check size={15} /></span><div><strong>Tudo certo por aqui.</strong><p>Compromisso adicionado ao Google Calendar e confirmação enviada ao profissional.</p></div></div>
+        </AgentMessage>
       </div>
-
-      <article className="booking-card">
-        <div className="provider-heading">
-          <span className="provider-icon"><KeyRound size={23} strokeWidth={1.7} aria-hidden="true" /></span>
-          <div>
-            <div className="provider-name-line">
-              <h2>{bookingResult.provider}</h2>
-              <span className="verified-badge" aria-label="Prestador verificado"><Check size={11} strokeWidth={2.3} /></span>
-            </div>
-            <p><Star size={14} fill="currentColor" strokeWidth={1.5} aria-hidden="true" />{bookingResult.rating} <span>({bookingResult.reviewCount} avaliações)</span></p>
-            <small>{bookingResult.distance} de você</small>
-          </div>
-        </div>
-
-        <div className="booking-numbers">
-          <div><span>PREÇO</span><strong>{bookingResult.price}</strong></div>
-          <div><span>CHEGADA</span><strong>{bookingResult.arrival}</strong></div>
-          <div><span>AVALIAÇÃO</span><strong>{bookingResult.rating} <Star size={15} fill="currentColor" /></strong></div>
-        </div>
-
-        <div className="compatibility-list">
-          <div><Check size={15} strokeWidth={2} aria-hidden="true" /><span>Dentro do seu orçamento</span></div>
-          <div><Check size={15} strokeWidth={2} aria-hidden="true" /><span>Dentro da sua disponibilidade</span></div>
-          <div><Check size={15} strokeWidth={2} aria-hidden="true" /><span>Serviço confirmado pelo profissional</span></div>
-        </div>
-
-        <button
-          className="primary-button booking-action pressable"
-          type="button"
-          aria-expanded={detailsOpen}
-          onClick={() => setDetailsOpen((open) => !open)}
-        >
-          Ver compromisso
-          <ChevronDown className={detailsOpen ? "is-rotated" : ""} size={17} strokeWidth={1.8} aria-hidden="true" />
-        </button>
-
-        {detailsOpen && (
-          <div className="appointment-details">
-            <div><CalendarDays size={16} strokeWidth={1.7} /><span><small>DATA E HORÁRIO</small>Hoje · 15:30–16:30</span></div>
-            <div><MapPin size={16} strokeWidth={1.7} /><span><small>LOCAL</small>Pinheiros, São Paulo</span></div>
-          </div>
-        )}
-      </article>
-
-      <div className="confirmation-card">
-        <span className="confirmation-icon"><Check size={16} strokeWidth={2} aria-hidden="true" /></span>
-        <div>
-          <strong>Tudo certo por aqui.</strong>
-          <p>Compromisso adicionado ao Google Calendar.</p>
-          <p>O Chaveiro Pinheiros recebeu a confirmação.</p>
-        </div>
-      </div>
-
-      <button className="text-button pressable" type="button" onClick={onReset}>
-        Fazer nova solicitação
-      </button>
+      <ComposerDock><button className="new-request-cta pressable" type="button" onClick={onReset}><Plus size={17} />Fazer nova solicitação</button></ComposerDock>
     </section>
   );
 }
@@ -522,64 +307,35 @@ function ResultScreen({ onReset }: { onReset: () => void }) {
 export function FieldApp() {
   const [state, dispatch] = useReducer(fieldFlowReducer, initialFlowState);
   const [activityPhase, setActivityPhase] = useState(0);
-  const [instantTransition, setInstantTransition] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (state.stage !== "work") return;
-
     setActivityPhase(0);
     const timers = [
-      window.setTimeout(() => setActivityPhase(1), 700),
-      window.setTimeout(() => setActivityPhase(2), 1400),
-      window.setTimeout(() => setActivityPhase(3), 2150),
-      window.setTimeout(() => setActivityPhase(4), 3000),
+      window.setTimeout(() => setActivityPhase(1), 700), window.setTimeout(() => setActivityPhase(2), 1400),
+      window.setTimeout(() => setActivityPhase(3), 2150), window.setTimeout(() => setActivityPhase(4), 3000),
       window.setTimeout(() => dispatch({ type: "SHOW_RESULT" }), 4300),
     ];
-
     return () => timers.forEach(window.clearTimeout);
   }, [state.stage]);
 
-  const stageLabel = useMemo(
-    () => ({ start: "Início", collect: "Coleta", work: "Execução", result: "Resultado" })[state.stage],
-    [state.stage],
-  );
-
-  const reset = () => {
-    setInstantTransition(false);
-    dispatch({ type: "RESET" });
-  };
+  const stageLabel = useMemo(() => ({ start: "Início", collect: "Coleta", work: "Execução", result: "Resultado" })[state.stage], [state.stage]);
+  const reset = () => { dispatch({ type: "RESET" }); setSidebarOpen(false); };
 
   return (
     <div className="field-app">
-      <Header stage={state.stage} onReset={reset} />
-      <main className="app-main" data-instant={instantTransition || undefined}>
-        <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
-        {state.stage === "start" && (
-          <StartScreen
-            onKeyboardStart={() => setInstantTransition(true)}
-            onStart={(message) => dispatch({ type: "START_REQUEST", message })}
-          />
-        )}
-        {state.stage === "collect" && (
-          <CollectScreen
-            originalRequest={state.originalRequest}
-            request={state.request}
-            onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })}
-            onBegin={() => {
-              setInstantTransition(false);
-              dispatch({ type: "BEGIN_WORK" });
-            }}
-          />
-        )}
-        {state.stage === "work" && (
-          <WorkScreen
-            request={state.request}
-            phase={activityPhase}
-            onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })}
-          />
-        )}
-        {state.stage === "result" && <ResultScreen onReset={reset} />}
-      </main>
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onReset={reset} />
+      <div className="chat-shell">
+        <ChatHeader stage={state.stage} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
+        <main className="app-main">
+          <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
+          {state.stage === "start" && <StartScreen onStart={(message) => dispatch({ type: "START_REQUEST", message })} />}
+          {state.stage === "collect" && <CollectScreen originalRequest={state.originalRequest} request={state.request} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} />}
+          {state.stage === "work" && <WorkScreen originalRequest={state.originalRequest} request={state.request} phase={activityPhase} onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })} />}
+          {state.stage === "result" && <ResultScreen originalRequest={state.originalRequest} request={state.request} onReset={reset} />}
+        </main>
+      </div>
     </div>
   );
 }

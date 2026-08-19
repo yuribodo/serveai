@@ -346,7 +346,29 @@ function Compatibility({ ok, label }: { ok: boolean | null | undefined; label: s
   );
 }
 
-function OfferItem({ item }: { item: OfferCardData }) {
+function calendarTimestamp(value: Date): string {
+  return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function googleCalendarURL(item: OfferCardData, location?: Location | null): string | null {
+  if (!item.availableAt) return null;
+  const start = new Date(item.availableAt);
+  if (Number.isNaN(start.valueOf())) return null;
+  const end = new Date(start.getTime() + 60 * 60 * 1_000);
+  const locationText = location?.address
+    ?? [location?.neighborhood, location?.city].filter(Boolean).join(", ");
+  const parameters = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `ServeAI — ${item.providerName}`,
+    dates: `${calendarTimestamp(start)}/${calendarTimestamp(end)}`,
+    details: `Prestador: ${item.providerName}\nValor combinado: ${formatCurrency(item.price)}`,
+    ...(locationText ? { location: locationText } : {}),
+  });
+  return `https://calendar.google.com/calendar/render?${parameters.toString()}`;
+}
+
+function OfferItem({ item, location }: { item: OfferCardData; location?: Location | null }) {
+  const calendarURL = item.acceptable ? googleCalendarURL(item, location) : null;
   return (
     <article className={styles.timelineCard}>
       <div className={styles.cardTitle}>
@@ -366,6 +388,15 @@ function OfferItem({ item }: { item: OfferCardData }) {
         <Compatibility ok={item.withinBudget} label="Compatibilidade com o orçamento" />
         <Compatibility ok={item.withinAvailability} label="Compatibilidade com a disponibilidade" />
       </div>
+      {calendarURL && (
+        <div className={styles.offerCalendarAction}>
+          <a href={calendarURL} target="_blank" rel="noreferrer">
+            <img src="/google-calendar-icon.svg" alt="" />
+            Adicionar ao Google Calendar
+            <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        </div>
+      )}
     </article>
   );
 }
@@ -420,10 +451,12 @@ function ErrorItem({ item, onRetry }: { item: ErrorCardData; onRetry: () => void
 function TimelineItemView({
   item,
   currentStatus,
+  location,
   onRetry,
 }: {
   item: TimelineItem;
   currentStatus?: RequestStatus;
+  location?: Location | null;
   onRetry: () => void;
 }) {
   switch (item.type) {
@@ -443,7 +476,7 @@ function TimelineItemView({
     case "providers":
       return <ProvidersItem item={item} />;
     case "offer":
-      return <OfferItem item={item} />;
+      return <OfferItem item={item} location={location} />;
     case "booking":
       return <BookingItem item={item} />;
     case "error":
@@ -530,9 +563,10 @@ function ConversationScreen({
             return (
               <div className={styles.toolReveal} key={item.id}>
                 <TimelineItemView
-                  item={item}
-                  currentStatus={conversation?.status}
-                  onRetry={onRetry}
+                item={item}
+                currentStatus={conversation?.status}
+                location={conversation?.serviceRequest.location}
+                onRetry={onRetry}
                 />
               </div>
             );
@@ -542,6 +576,7 @@ function ConversationScreen({
               key={item.id}
               item={item}
               currentStatus={conversation?.status}
+              location={conversation?.serviceRequest.location}
               onRetry={onRetry}
             />
           );

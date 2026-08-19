@@ -271,6 +271,45 @@
   color: var(--success);
 }
 
+.offerCalendarAction {
+  padding: 0 17px 17px;
+}
+
+.offerCalendarAction a {
+  min-height: 44px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--foreground);
+  background: var(--background);
+  font-size: 11px;
+  font-weight: 550;
+  text-decoration: none;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.offerCalendarAction img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.offerCalendarAction svg {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .offerCalendarAction a:hover {
+    background: var(--surface);
+    transform: translateY(-1px);
+  }
+}
+
 .incompatible {
   color: #8a3d31 !important;
 }

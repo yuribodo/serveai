@@ -27,7 +27,7 @@ from app.domain.models import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL: Final = "gpt-5.4-mini"
+DEFAULT_MODEL: Final = "gpt-5.6-luna"
 DEFAULT_TIMEZONE: Final = ZoneInfo("America/Sao_Paulo")
 
 
@@ -174,7 +174,10 @@ class LangChainRequirementsExtractor:
                     "não os substituir explicitamente; use null apenas para fatos desconhecidos. "
                     "Converta valores monetários para BRL. Resolva datas relativas usando o "
                     "instante e fuso fornecidos e sempre devolva timestamps com offset. Não "
-                    "invente endereço exato, coordenadas, orçamento ou disponibilidade."
+                    "invente endereço exato, coordenadas, orçamento ou disponibilidade. "
+                    "Interprete linguagem cotidiana e implícita: porta emperrada ou que não "
+                    "abre é o problema; 'agora', 'urgente' e 'o mais rápido possível' significam "
+                    "disponibilidade imediata a partir do instante atual por quatro horas."
                 )
             ),
             HumanMessage(
@@ -329,7 +332,9 @@ class RuleBasedRequirementsExtractor:
             if availability:
                 result.availability = [availability]
                 normalized = _normalize(message)
-                if "depois de amanha" in normalized:
+                if re.search(r"\b(agora|urgente|imediat[oa]|mais rapido possivel)\b", normalized):
+                    result.urgency = "immediate"
+                elif "depois de amanha" in normalized:
                     result.urgency = "in_two_days"
                 elif "amanha" in normalized:
                     result.urgency = "tomorrow"
@@ -530,7 +535,8 @@ def _extract_location(text: str, *, expected: bool) -> Location | None:
 
 
 _PROBLEM_MARKERS: Final = re.compile(
-    r"\b(perdi|trancad[oa]|fechadura|quebrou|quebrad[oa]|nao consigo entrar|"
+    r"\b(perdi|trancad[oa]|trav(?:ou|ad[oa])|emperr(?:ou|ad[oa])|nao abre|"
+    r"fechadura|quebrou|quebrad[oa]|nao consigo entrar|"
     r"vazamento|vazando|entupid[oa]|sem agua|curto|tomada|chuveiro|"
     r"instalar|consertar|trocar|parou de funcionar)\b"
 )
@@ -621,7 +627,11 @@ _TIME_TOKEN: Final = r"(?<![\d/])([01]?\d|2[0-3])(?:[:h]([0-5]?\d)?)?(?![\d/:])"
 
 def _looks_like_availability(normalized: str) -> bool:
     return bool(
-        re.search(r"\b(hoje|amanha|manha|tarde|noite|horario|disponivel)\b", normalized)
+        re.search(
+            r"\b(hoje|amanha|manha|tarde|noite|horario|disponivel|agora|urgente|"
+            r"imediat[oa]|mais rapido possivel)\b",
+            normalized,
+        )
         or re.search(r"\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b", normalized)
     )
 
@@ -630,6 +640,9 @@ def _extract_availability(text: str, now: datetime) -> AvailabilityWindow | None
     normalized = _normalize(text)
     if not _looks_like_availability(normalized):
         return None
+
+    if re.search(r"\b(agora|urgente|imediat[oa]|mais rapido possivel)\b", normalized):
+        return AvailabilityWindow(start=now, end=now + timedelta(hours=4))
 
     target_date = _extract_target_date(normalized, now.date())
     range_match = re.search(

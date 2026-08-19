@@ -640,8 +640,10 @@ textarea { resize: none; }
 .appointment-details small { display: block; margin-bottom: 3px; color: var(--tertiary); font-size: 7px; font-weight: 650; letter-spacing: .07em; }
 .confirmation-card { margin-top: 9px; padding: 12px; display: flex; gap: 9px; border: 1px solid #d8ebe0; border-radius: 12px; background: #f4fbf7; }
 .confirmation-card > span { width: 25px; height: 25px; flex: 0 0 25px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--success); }
+.confirmation-content { min-width: 0; flex: 1; }
 .confirmation-card strong { font-size: 10px; font-weight: 590; }
 .confirmation-card p { margin: 3px 0 0; color: #5d7367; font-size: 8px; line-height: 1.45; }
+.calendar-button { width: fit-content; min-height: 34px; margin-top: 10px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; border-radius: 9px; color: var(--inverse-foreground); background: var(--inverse); font-size: 9px; font-weight: 580; text-decoration: none; }
 .new-request-cta { width: 100%; min-height: 49px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: 14px; background: var(--background); font-size: 11px; font-weight: 540; cursor: pointer; }
 
 @media (hover: hover) and (pointer: fine) {

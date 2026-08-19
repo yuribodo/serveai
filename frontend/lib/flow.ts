@@ -30,7 +30,6 @@ export interface ProviderOffer {
 }
 
 export interface BookingResult extends ProviderOffer {
-  calendarAdded: boolean;
   providerConfirmed: boolean;
 }
 
@@ -73,7 +72,6 @@ export const bookingResult: BookingResult = {
   distance: "1,2 km",
   price: "R$180",
   arrival: "15:30",
-  calendarAdded: true,
   providerConfirmed: true,
 };
 

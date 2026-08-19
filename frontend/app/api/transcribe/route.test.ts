@@ -9,10 +9,16 @@ afterEach(() => {
   else process.env.OPENAI_API_KEY = originalApiKey;
 });
 
-function audioRequest() {
+function audioRequest({
+  type = "audio/webm",
+  headers,
+}: {
+  type?: string;
+  headers?: HeadersInit;
+} = {}) {
   const body = new FormData();
-  body.append("audio", new File(["audio"], "gravacao.webm", { type: "audio/webm" }));
-  return new Request("http://localhost/api/transcribe", { method: "POST", body });
+  body.append("audio", new File(["audio"], "gravacao.webm", { type }));
+  return new Request("http://localhost/api/transcribe", { method: "POST", body, headers });
 }
 
 describe("voice transcription route", () => {
@@ -45,5 +51,30 @@ describe("voice transcription route", () => {
     );
     expect(forwardedBody?.get("language")).toBe("pt");
     expect(forwardedBody?.get("model")).toBe("gpt-4o-mini-transcribe");
+  });
+
+  it("rejects cross-origin and unsupported uploads before contacting OpenAI", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const crossOrigin = await POST(audioRequest({ headers: { Origin: "https://example.test" } }));
+    const unsupported = await POST(audioRequest({ type: "application/octet-stream" }));
+
+    expect(crossOrigin.status).toBe(403);
+    expect(unsupported.status).toBe(415);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes a non-JSON upstream failure", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("gateway error", { status: 503 })));
+
+    const response = await POST(audioRequest());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "O serviço de transcrição está indisponível no momento.",
+    });
   });
 });

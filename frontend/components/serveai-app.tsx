@@ -1,79 +1,163 @@
 "use client";
 
 import {
-  ArrowUp, ArrowUpRight, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
-  KeyRound, LocateFixed, MapPin, Menu, MessageSquare, Mic,
-  MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
-  Settings, Star, UserRound, WalletCards, Wrench,
+  AlertTriangle,
+  ArrowUp,
+  CalendarDays,
+  Check,
+  CircleDashed,
+  ExternalLink,
+  KeyRound,
+  LocateFixed,
+  MapPin,
+  Menu,
+  MessageSquare,
+  MoreHorizontal,
+  PanelLeftClose,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Star,
+  UserRound,
 } from "lucide-react";
-import type { ComponentType, FormEvent, KeyboardEvent, ReactNode } from "react";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatComposer } from "@/components/chat-composer";
+import type { BrowserLocation } from "@/lib/location";
 import {
-  bookingResult, fieldFlowReducer, initialFlowState,
-  type EditableField, type RequestLocation, type ServiceRequest,
-} from "@/lib/flow";
-import { buildGoogleCalendarUrl } from "@/lib/calendar";
-import { requestBrowserLocation, resolveLocationName } from "@/lib/location";
-import { getMicrophoneErrorMessage, mergeSpeechTranscript } from "@/lib/speech";
-
-type VoiceState = "idle" | "connecting" | "recording" | "finishing";
-
-const MAX_RECORDING_MS = 30_000;
-const NO_SPEECH_TIMEOUT_MS = 10_000;
-const SILENCE_TO_STOP_MS = 1_400;
-const PREVIEW_SEGMENT_MS = 2_500;
-
-function supportedRecordingOptions(): MediaRecorderOptions | undefined {
-  const mimeTypes = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
-  const mimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
-  return mimeType ? { mimeType } : undefined;
-}
+  createClientMessageId,
+  ServeAIAPIError,
+  ServeAIClient,
+  type BookingCard as BookingCardData,
+  type ChatConversation,
+  type ErrorCard as ErrorCardData,
+  type Location,
+  type OfferCard as OfferCardData,
+  type OperationCard as OperationCardData,
+  type ProvidersCard as ProvidersCardData,
+  type RequestStatus,
+  type TimelineItem,
+} from "@/lib/serveai";
+import styles from "./serveai-app.module.css";
 
 const starterSuggestions = [
   { label: "Encontrar um chaveiro perto de mim", hint: "Disponível agora", icon: KeyRound },
   { label: "Perdi minha chave", hint: "Resolver com urgência", icon: LocateFixed },
-  { label: "Minha porta está travada", hint: "Buscar assistência", icon: Wrench },
+  { label: "Minha porta está travada", hint: "Buscar assistência", icon: Search },
   { label: "Chaveiro hoje à tarde", hint: "Comparar profissionais", icon: CalendarDays },
 ];
 
-const problemOptions = ["Perdi a chave", "A porta travou", "A chave quebrou", "Outro problema"];
-const budgetOptions = ["Até R$150", "Até R$200", "Até R$250", "Valor flexível"];
-
-const fieldMeta: Record<
-  EditableField,
-  { label: string; icon: ComponentType<{ size?: number; strokeWidth?: number }> }
-> = {
-  service: { label: "Serviço", icon: Wrench },
-  location: { label: "Local", icon: MapPin },
-  availability: { label: "Quando", icon: CalendarDays },
-  problem: { label: "Problema", icon: KeyRound },
-  budget: { label: "Orçamento", icon: WalletCards },
+const statusLabels: Record<RequestStatus, string> = {
+  collecting_requirements: "Entendendo a solicitação",
+  ready: "Pronto para buscar",
+  searching: "Buscando prestadores",
+  providers_found: "Prestadores encontrados",
+  contacting: "Contatando prestadores",
+  waiting_for_replies: "Aguardando respostas",
+  offer_received: "Oferta recebida",
+  needs_user_input: "Aguardando você",
+  accepted: "Confirmando reserva",
+  booked: "Reserva concluída",
+  failed: "Ação interrompida",
 };
 
-const activitySteps = [
-  { label: "Pesquisando nas proximidades", detail: "", time: "09:42" },
-  { label: "14 profissionais encontrados", detail: "abertos agora", time: "09:42" },
-  { label: "3 candidatos selecionados", detail: "melhor compatibilidade", time: "09:43" },
-  { label: "Profissionais contatados", detail: "3 mensagens enviadas", time: "09:43" },
-  { label: "Aguardando respostas", detail: "", time: "" },
-];
+const activeOperationStatuses = new Set<RequestStatus>([
+  "searching",
+  "contacting",
+  "waiting_for_replies",
+  "accepted",
+]);
+
+type SubmitAction =
+  | { kind: "create"; message: string; clientMessageId: string; location?: Location }
+  | { kind: "message"; conversationId: string; message: string; clientMessageId: string };
+
+interface RequestFailure {
+  message: string;
+  retryable: boolean;
+  action: SubmitAction | { kind: "refresh"; conversationId: string };
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null) return "A combinar";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "Horário a combinar";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function safeExternalURL(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function toRequestLocation(location: BrowserLocation): Location {
+  const labelParts = location.label
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const hasResolvedLabel = location.label !== "Localização atual";
+
+  return {
+    latitude: location.latitude,
+    longitude: location.longitude,
+    ...(hasResolvedLabel && labelParts.length > 1
+      ? { neighborhood: labelParts[0], city: labelParts.slice(1).join(", ") }
+      : hasResolvedLabel && labelParts.length === 1
+        ? { city: labelParts[0] }
+        : {}),
+  };
+}
 
 function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <img src="/serveai-logo.png" alt="" />
+      <img src="/serveai-logo.svg" alt="" />
     </span>
   );
 }
 
-function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => void; onReset: () => void }) {
+function Sidebar({
+  open,
+  active,
+  title,
+  onClose,
+  onReset,
+}: {
+  open: boolean;
+  active: boolean;
+  title: string;
+  onClose: () => void;
+  onReset: () => void;
+}) {
   return (
     <>
-      <button className={`sidebar-backdrop ${open ? "is-visible" : ""}`} type="button" onClick={onClose} aria-label="Fechar menu" tabIndex={open ? 0 : -1} />
+      <button
+        className={`sidebar-backdrop ${open ? "is-visible" : ""}`}
+        type="button"
+        onClick={onClose}
+        aria-label="Fechar menu"
+        aria-hidden={!open}
+        tabIndex={open ? 0 : -1}
+      />
       <aside className={`sidebar ${open ? "is-open" : ""}`} aria-label="Navegação principal">
         <div className="sidebar-top">
           <button className="sidebar-brand pressable" type="button" onClick={onReset} aria-label="Ir para o início">
-            <BrandMark /><span>ServeAI</span>
+            <BrandMark /><span>SERVEAI</span>
           </button>
           <button className="icon-button sidebar-close pressable" type="button" onClick={onClose} aria-label="Recolher menu">
             <PanelLeftClose size={18} strokeWidth={1.7} />
@@ -84,370 +168,102 @@ function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => voi
           <Plus size={17} strokeWidth={1.8} /><span>Nova solicitação</span><kbd>⌘ K</kbd>
         </button>
 
-        <nav className="sidebar-nav" aria-label="Conversas recentes">
-          <p>Recentes</p>
-          <button className="history-item is-active" type="button">
-            <MessageSquare size={15} strokeWidth={1.6} /><span>Chaveiro em Pinheiros</span><MoreHorizontal className="history-more" size={16} strokeWidth={1.7} />
-          </button>
-          <button className="history-item" type="button"><MessageSquare size={15} strokeWidth={1.6} /><span>Manutenção do ar-condicionado</span></button>
-          <button className="history-item" type="button"><MessageSquare size={15} strokeWidth={1.6} /><span>Orçamento para encanador</span></button>
+        <nav className="sidebar-nav" aria-label="Conversa atual">
+          <p>Conversa atual</p>
+          {active ? (
+            <button className="history-item is-active" type="button" onClick={onClose}>
+              <MessageSquare size={15} strokeWidth={1.6} /><span>{title}</span><MoreHorizontal className="history-more" size={16} strokeWidth={1.7} />
+            </button>
+          ) : (
+            <span className={styles.emptyHistory}>Sua próxima solicitação aparecerá aqui.</span>
+          )}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="sidebar-footer-item pressable" type="button"><Settings size={17} strokeWidth={1.6} /><span>Configurações</span></button>
-          <button className="account-button pressable" type="button">
-            <span className="account-avatar"><UserRound size={16} strokeWidth={1.7} /></span>
-            <span><strong>Mario</strong><small>Plano pessoal</small></span><MoreHorizontal size={17} strokeWidth={1.7} />
+          <button className="sidebar-footer-item" type="button" disabled aria-label="Configurações indisponíveis na demonstração">
+            <Settings size={17} strokeWidth={1.6} /><span>Configurações</span>
           </button>
+          <div className="account-button">
+            <span className="account-avatar"><UserRound size={16} strokeWidth={1.7} /></span>
+            <span><strong>ServeAI Demo</strong><small>Sessão local</small></span>
+          </div>
         </div>
       </aside>
     </>
   );
 }
 
-function ChatHeader({ stage, title, onOpenMenu, onReset }: { stage: string; title: string; onOpenMenu: () => void; onReset: () => void }) {
-  const status = stage === "work" ? "Executando" : stage === "result" ? "Concluído" : "Online";
+function ChatHeader({
+  status,
+  active,
+  title,
+  onOpenMenu,
+  onReset,
+}: {
+  status?: RequestStatus;
+  active: boolean;
+  title: string;
+  onOpenMenu: () => void;
+  onReset: () => void;
+}) {
+  const label = status ? statusLabels[status] : "Online";
+  const working = status ? activeOperationStatuses.has(status) : false;
   return (
     <header className="chat-header">
       <div className="chat-header-left">
-        <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
-        <div className="chat-title"><strong>{title}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
+        <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu">
+          <Menu size={20} strokeWidth={1.7} />
+        </button>
+        <div className="chat-title">
+          <strong>{active ? title : "ServeAI"}</strong>
+          <span className={`chat-status ${working ? "is-work" : ""} ${status === "failed" ? "is-failed" : ""}`}>
+            <i />{label}
+          </span>
+        </div>
       </div>
-      <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Novo chat</span></button>
+      <button className="header-new-chat pressable" type="button" onClick={onReset}>
+        <Plus size={17} strokeWidth={1.8} /><span>Novo chat</span>
+      </button>
     </header>
   );
 }
 
-function Composer({ value, onChange, onSubmit, onLocation, placeholder, autoFocus = false, autoRequestLocation = false, quiet = false }: {
-  value: string; onChange: (value: string) => void; onSubmit: () => void; placeholder: string; autoFocus?: boolean; quiet?: boolean;
-  onLocation?: (location: RequestLocation) => void;
-  autoRequestLocation?: boolean;
+function StartScreen({
+  onStart,
+  initialMessage,
+  location,
+  onLocation,
+}: {
+  onStart: (message: string) => void;
+  initialMessage: string;
+  location?: BrowserLocation;
+  onLocation: (location: BrowserLocation) => void;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const mainRecorderRef = useRef<MediaRecorder | null>(null);
-  const previewRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const previewStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const monitorTimerRef = useRef<number | null>(null);
-  const previewTimerRef = useRef<number | null>(null);
-  const maxTimerRef = useRef<number | null>(null);
-  const noSpeechTimerRef = useRef<number | null>(null);
-  const finalRequestRef = useRef<AbortController | null>(null);
-  const previewRequestsRef = useRef(new Set<AbortController>());
-  const baseValueRef = useRef("");
-  const previewResultsRef = useRef(new Map<number, string>());
-  const previewIndexRef = useRef(0);
-  const sessionRef = useRef(0);
-  const activeRef = useRef(false);
-  const autoLocationRequestedRef = useRef(false);
-  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
-  const [voiceError, setVoiceError] = useState("");
-  const [supportsVoice, setSupportsVoice] = useState(true);
-  const [locationState, setLocationState] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [locationError, setLocationError] = useState("");
-  const [locationLabel, setLocationLabel] = useState("");
+  const [message, setMessage] = useState(initialMessage);
 
-  const resize = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
-  };
-  useEffect(resize, [value]);
-
-  const clearVoiceTimers = () => {
-    [previewTimerRef, maxTimerRef, noSpeechTimerRef].forEach((timerRef) => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    });
-    if (monitorTimerRef.current !== null) window.clearInterval(monitorTimerRef.current);
-    monitorTimerRef.current = null;
-  };
-
-  const closeVoiceSession = () => {
-    clearVoiceTimers();
-    activeRef.current = false;
-    previewRequestsRef.current.forEach((controller) => controller.abort());
-    previewRequestsRef.current.clear();
-    finalRequestRef.current?.abort();
-    finalRequestRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    previewStreamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    previewStreamRef.current = null;
-    void audioContextRef.current?.close();
-    audioContextRef.current = null;
-    mainRecorderRef.current = null;
-    previewRecorderRef.current = null;
-  };
-
-  useEffect(() => {
-    setSupportsVoice(
-      "mediaDevices" in navigator
-      && "MediaRecorder" in window
-      && "AudioContext" in window,
-    );
-    return () => {
-      sessionRef.current += 1;
-      closeVoiceSession();
-    };
-  }, []);
-
-  const audioExtension = (audio: Blob) => audio.type.includes("mp4") ? "m4a" : "webm";
-
-  const requestTranscript = async (audio: Blob, controller: AbortController) => {
-    const formData = new FormData();
-    formData.append("audio", audio, `gravacao.${audioExtension(audio)}`);
-    const response = await fetch("/api/transcribe", {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-    });
-    const result = (await response.json()) as { text?: string; error?: string };
-    if (!response.ok) throw new Error(result.error || "Não consegui transcrever o áudio.");
-    return result.text?.trim() || "";
-  };
-
-  const updatePreview = async (audio: Blob, index: number, session: number) => {
-    if (audio.size === 0) return;
-    const controller = new AbortController();
-    previewRequestsRef.current.add(controller);
-    try {
-      const transcript = await requestTranscript(audio, controller);
-      if (!activeRef.current || sessionRef.current !== session || !transcript) return;
-      previewResultsRef.current.set(index, transcript);
-      const ordered: string[] = [];
-      for (let position = 0; previewResultsRef.current.has(position); position += 1) {
-        ordered.push(previewResultsRef.current.get(position) as string);
-      }
-      onChange(mergeSpeechTranscript(baseValueRef.current, ordered.join(" ")));
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
-        console.warn("Live transcription preview failed", error);
-      }
-    } finally {
-      previewRequestsRef.current.delete(controller);
-    }
-  };
-
-  const startPreviewSegment = (stream: MediaStream, session: number) => {
-    if (!activeRef.current || sessionRef.current !== session) return;
-    const chunks: Blob[] = [];
-    const recorder = new MediaRecorder(stream, supportedRecordingOptions());
-    const index = previewIndexRef.current;
-    previewIndexRef.current += 1;
-    previewRecorderRef.current = recorder;
-    recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
-    recorder.onstop = () => {
-      const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-      if (!activeRef.current || sessionRef.current !== session) return;
-      void updatePreview(audio, index, session);
-      startPreviewSegment(stream, session);
-    };
-    recorder.start();
-    previewTimerRef.current = window.setTimeout(() => {
-      if (recorder.state !== "inactive") recorder.stop();
-    }, PREVIEW_SEGMENT_MS);
-  };
-
-  const finishRecording = () => {
-    if (!activeRef.current) return;
-    activeRef.current = false;
-    clearVoiceTimers();
-    setVoiceState("finishing");
-    if (previewRecorderRef.current?.state !== "inactive") previewRecorderRef.current?.stop();
-    if (mainRecorderRef.current?.state !== "inactive") mainRecorderRef.current?.stop();
-  };
-
-  const startVoice = async () => {
-    setVoiceError("");
-    setVoiceState("connecting");
-    const session = sessionRef.current + 1;
-    sessionRef.current = session;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      const previewStream = new MediaStream(stream.getAudioTracks().map((track) => track.clone()));
-      const chunks: Blob[] = [];
-      const recorder = new MediaRecorder(stream, supportedRecordingOptions());
-      streamRef.current = stream;
-      previewStreamRef.current = previewStream;
-      mainRecorderRef.current = recorder;
-      baseValueRef.current = value;
-      previewResultsRef.current.clear();
-      previewIndexRef.current = 0;
-      activeRef.current = true;
-      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
-      recorder.onerror = () => {
-        closeVoiceSession();
-        setVoiceState("idle");
-        setVoiceError("Ocorreu um erro durante a gravação. Tente novamente.");
-      };
-      recorder.onstop = async () => {
-        const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        previewRequestsRef.current.forEach((controller) => controller.abort());
-        previewRequestsRef.current.clear();
-        stream.getTracks().forEach((track) => track.stop());
-        previewStream.getTracks().forEach((track) => track.stop());
-        void audioContextRef.current?.close();
-        audioContextRef.current = null;
-        const controller = new AbortController();
-        finalRequestRef.current = controller;
-        try {
-          const transcript = await requestTranscript(audio, controller);
-          if (sessionRef.current !== session) return;
-          if (!transcript) throw new Error("Não ouvi nenhuma fala. Toque no microfone e tente novamente.");
-          onChange(mergeSpeechTranscript(baseValueRef.current, transcript));
-          setVoiceError("");
-        } catch (error) {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
-            setVoiceError(error instanceof Error ? error.message : "Não consegui transcrever o áudio.");
-          }
-        } finally {
-          if (sessionRef.current === session) setVoiceState("idle");
-          finalRequestRef.current = null;
-        }
-      };
-
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(stream);
-      let heardSpeech = false;
-      let lastSpeechAt = performance.now();
-      analyser.fftSize = 512;
-      const levels = new Uint8Array(analyser.fftSize);
-      source.connect(analyser);
-      audioContextRef.current = audioContext;
-      monitorTimerRef.current = window.setInterval(() => {
-        analyser.getByteTimeDomainData(levels);
-        let energy = 0;
-        for (const level of levels) energy += ((level - 128) / 128) ** 2;
-        const volume = Math.sqrt(energy / levels.length);
-        const now = performance.now();
-        if (volume > 0.018) {
-          heardSpeech = true;
-          lastSpeechAt = now;
-          if (noSpeechTimerRef.current !== null) window.clearTimeout(noSpeechTimerRef.current);
-          noSpeechTimerRef.current = null;
-        } else if (heardSpeech && now - lastSpeechAt >= SILENCE_TO_STOP_MS) {
-          finishRecording();
-        }
-      }, 100);
-
-      recorder.start();
-      startPreviewSegment(previewStream, session);
-      setVoiceState("recording");
-      maxTimerRef.current = window.setTimeout(finishRecording, MAX_RECORDING_MS);
-      noSpeechTimerRef.current = window.setTimeout(finishRecording, NO_SPEECH_TIMEOUT_MS);
-    } catch (error) {
-      closeVoiceSession();
-      setVoiceState("idle");
-      const errorName = error instanceof DOMException ? error.name : "";
-      setVoiceError(
-        error instanceof Error && !(error instanceof DOMException) ? error.message : getMicrophoneErrorMessage(errorName),
-      );
-    }
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (value.trim() && voiceState === "idle") onSubmit();
-  };
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (value.trim() && voiceState === "idle") onSubmit();
-    }
-  };
-
-  const toggleVoice = () => {
-    if (!supportsVoice) {
-      setVoiceError("A gravação de voz não está disponível neste navegador.");
-      return;
-    }
-    if (voiceState === "recording") finishRecording();
-    if (voiceState === "idle") void startVoice();
-  };
-
-  const useCurrentLocation = async () => {
-    setLocationState("loading");
-    setLocationError("");
-    try {
-      const coordinates = await requestBrowserLocation(navigator.geolocation);
-      const location = await resolveLocationName(coordinates).catch(() => coordinates);
-      onLocation?.(location);
-      setLocationLabel(location.label);
-      setLocationState("success");
-    } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "Não foi possível acessar sua localização.");
-      setLocationState("error");
-    }
-  };
-
-  useEffect(() => {
-    if (!autoRequestLocation || autoLocationRequestedRef.current) return;
-    autoLocationRequestedRef.current = true;
-    void useCurrentLocation();
-  }, [autoRequestLocation]);
-
-  const voiceFeedback = voiceError
-    || (voiceState === "connecting" && "Conectando ao microfone…")
-    || (voiceState === "recording" && "Ouvindo e transcrevendo… paro quando você terminar de falar.")
-    || (voiceState === "finishing" && "Finalizando transcrição…");
-
-  return (
-    <form className={`composer ${quiet ? "is-quiet" : ""} ${voiceState !== "idle" ? "is-listening" : ""}`} onSubmit={handleSubmit}>
-      <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => { setVoiceError(""); onChange(event.target.value); }} onInput={resize} onKeyDown={handleKeyDown} placeholder={voiceState === "recording" ? "Pode falar…" : placeholder} aria-label={placeholder} autoFocus={autoFocus} disabled={voiceState !== "idle"} />
-      {voiceFeedback && <p className={`voice-feedback ${voiceError ? "is-error" : ""}`} role={voiceError ? "alert" : "status"}>{voiceFeedback}</p>}
-      {locationError && <p className="location-feedback is-error" role="alert">{locationError}</p>}
-      {locationState === "success" && <p className="location-attribution">Localização aproximada · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></p>}
-      <div className="composer-toolbar">
-        <div className="composer-tools">
-          <button className="composer-icon pressable" type="button" aria-label="Anexar arquivo"><Paperclip size={18} strokeWidth={1.7} /></button>
-          <button
-            className={`location-pill pressable is-${locationState}`}
-            type="button"
-            aria-label={locationState === "success" ? `Localização usada: ${locationLabel}` : "Usar localização atual"}
-            aria-pressed={locationState === "success"}
-            onClick={() => void useCurrentLocation()}
-            disabled={locationState === "loading"}
-          >
-            {locationState === "success" ? <Check size={15} strokeWidth={2} /> : <LocateFixed size={15} strokeWidth={1.8} />}
-            <span>{locationState === "loading" ? "Obtendo…" : locationState === "success" ? locationLabel : "Localização"}</span>
-          </button>
-        </div>
-        <div className="composer-actions">
-          <button className="composer-icon voice-button pressable" type="button" aria-label={voiceState === "recording" ? "Parar gravação" : "Usar microfone"} aria-pressed={voiceState !== "idle"} onClick={toggleVoice} disabled={voiceState === "connecting" || voiceState === "finishing"}><span className="voice-pulse" aria-hidden="true" /><Mic size={18} strokeWidth={1.7} /></button>
-          <button className="composer-submit pressable" type="submit" aria-label="Enviar mensagem" disabled={!value.trim() || voiceState !== "idle"}><ArrowUp size={18} strokeWidth={2.2} /></button>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-function ComposerDock({ children }: { children: ReactNode }) {
-  return <div className="composer-dock">{children}<p>O ServeAI pode cometer erros. Confirme informações importantes.</p></div>;
-}
-
-function StartScreen({ onStart }: { onStart: (message: string, location?: RequestLocation) => void }) {
-  const [message, setMessage] = useState("");
-  const [location, setLocation] = useState<RequestLocation>();
-  const submit = () => message.trim() && onStart(message, location);
   return (
     <section className="start-screen stage-panel" aria-labelledby="start-title">
       <div className="start-content">
         <div className="start-brand"><BrandMark /></div>
         <h1 id="start-title">O que vamos resolver hoje?</h1>
         <p>Descreva o que você precisa. Eu encontro, comparo e agendo o melhor profissional para você.</p>
-        <div className="start-composer"><Composer value={message} onChange={setMessage} onSubmit={submit} onLocation={setLocation} placeholder="Peça qualquer serviço local" autoFocus autoRequestLocation /></div>
-        <div className="suggestion-grid" aria-label="Sugestões">
+        <div className="start-composer">
+          <ChatComposer
+            value={message}
+            onChange={setMessage}
+            onSubmit={() => onStart(message)}
+            placeholder="Peça qualquer serviço local"
+            autoFocus
+            location={location}
+            onLocation={onLocation}
+          />
+        </div>
+        <div className="suggestion-grid">
           {starterSuggestions.map(({ label, hint, icon: Icon }) => (
-            <button className="suggestion-card pressable" type="button" key={label} onClick={() => onStart(label, location)}>
-              <span className="suggestion-icon"><Icon size={17} strokeWidth={1.7} /></span>
+            <button className="suggestion-card pressable" type="button" key={label} onClick={() => onStart(label)}>
+              <span className="suggestion-icon"><Icon size={17} strokeWidth={1.7} aria-hidden="true" /></span>
               <span className="suggestion-copy"><strong>{label}</strong><small>{hint}</small></span>
-              <ArrowUp className="suggestion-arrow" size={15} strokeWidth={1.8} />
+              <ArrowUp className="suggestion-arrow" size={15} strokeWidth={1.8} aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -456,218 +272,453 @@ function StartScreen({ onStart }: { onStart: (message: string, location?: Reques
   );
 }
 
-function UserMessage({ children }: { children: ReactNode }) {
-  return <div className="user-message-wrap"><div className="user-message">{children}</div></div>;
-}
-
-function AgentMessage({ children }: { children: ReactNode }) {
-  return <div className="agent-message"><BrandMark /><div className="agent-content">{children}</div></div>;
-}
-
-function ParameterRow({ field, value, onChange }: { field: EditableField; value: string; onChange: (value: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { label, icon: Icon } = fieldMeta[field];
-  useEffect(() => setDraft(value), [value]);
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-  const save = () => { if (draft.trim()) onChange(draft); else setDraft(value); setEditing(false); };
-
+function OperationItem({ item, currentStatus }: { item: OperationCardData; currentStatus?: RequestStatus }) {
+  const active = item.status === currentStatus && activeOperationStatuses.has(item.status);
   return (
-    <div className={`parameter-row ${!value ? "is-empty" : ""}`}>
-      <span className="parameter-icon"><Icon size={15} strokeWidth={1.7} /></span>
-      <span className="parameter-copy"><small>{label}</small>
-        {editing ? (
-          <input ref={inputRef} className="parameter-input" value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={save} onKeyDown={(event) => {
-            if (event.key === "Enter") save();
-            if (event.key === "Escape") { setDraft(value); setEditing(false); }
-          }} aria-label={`Editar ${label.toLowerCase()}`} />
-        ) : <strong>{value || "Ainda não informado"}</strong>}
-      </span>
-      <button className="edit-parameter pressable" type="button" onClick={() => setEditing(true)} aria-label={`Alterar ${label.toLowerCase()}`}><PencilLine size={14} strokeWidth={1.7} /></button>
-    </div>
-  );
-}
-
-function RequestSummary({ request, onUpdate, compact = false }: { request: ServiceRequest; onUpdate?: (field: EditableField, value: string) => void; compact?: boolean }) {
-  if (compact) return (
-    <div className="compact-request" aria-label="Resumo da solicitação">
-      <span><MapPin size={14} />{request.location}</span><span><Clock3 size={14} />{request.availability}</span><span><WalletCards size={14} />{request.budget}</span>
-    </div>
-  );
-  return (
-    <section className="request-card" aria-labelledby="request-title">
-      <div className="card-heading"><div><span className="card-kicker">SOLICITAÇÃO</span><h2 id="request-title">Detalhes entendidos</h2></div><span className="understood-badge"><Check size={13} strokeWidth={2.2} />Atualizado</span></div>
-      <div className="parameter-list">{(Object.keys(fieldMeta) as EditableField[]).map((field) => (
-        <ParameterRow key={field} field={field} value={request[field]} onChange={(value) => onUpdate?.(field, value)} />
-      ))}</div>
-    </section>
-  );
-}
-
-function OptionChips({ options, onSelect }: { options: string[]; onSelect: (value: string) => void }) {
-  return <div className="option-chips">{options.map((option) => <button className="option-chip pressable" type="button" onClick={() => onSelect(option)} key={option}>{option}</button>)}</div>;
-}
-
-function CollectScreen({ originalRequest, request, onUpdate, onUpdateLocation, onBegin }: { originalRequest: string; request: ServiceRequest; onUpdate: (field: EditableField, value: string) => void; onUpdateLocation: (location: RequestLocation) => void; onBegin: () => void }) {
-  const [reply, setReply] = useState("");
-  const question = !request.location ? "location" : !request.problem ? "problem" : !request.budget ? "budget" : "ready";
-  const answer = (value: string) => { if (question === "location") onUpdate("location", value); if (question === "problem") onUpdate("problem", value); if (question === "budget") onUpdate("budget", value); setReply(""); };
-  const submitReply = () => reply.trim() && question !== "ready" && answer(reply);
-  return (
-    <section className="conversation-screen stage-panel" aria-label="Conversa">
-      <div className="conversation-thread">
-        <UserMessage>{originalRequest}</UserMessage>
-        <AgentMessage>
-          <p>Entendi. Já organizei as informações que vieram na sua mensagem.</p>
-          <p className="muted-copy">Você pode revisar e editar qualquer detalhe antes de eu começar.</p>
-          <RequestSummary request={request} onUpdate={onUpdate} />
-        </AgentMessage>
-        {request.problem && <UserMessage>{request.problem}</UserMessage>}
-        {question === "location" && <AgentMessage><p>Onde você está?</p><p className="muted-copy">Use o botão de localização abaixo ou digite seu endereço, bairro ou CEP.</p></AgentMessage>}
-        {question === "problem" && <AgentMessage><p>O que aconteceu com a fechadura?</p><p className="muted-copy">Isso me ajuda a encontrar o profissional certo.</p><OptionChips options={problemOptions} onSelect={answer} /></AgentMessage>}
-        {question === "budget" && <AgentMessage><p>Perfeito. Quanto você gostaria de gastar?</p><OptionChips options={budgetOptions} onSelect={answer} /></AgentMessage>}
-        {request.budget && <UserMessage>{request.budget}</UserMessage>}
-        {question === "ready" && (
-          <AgentMessage>
-            <p>Ótimo, tenho tudo o que preciso.</p>
-            <p className="muted-copy">Posso comparar os profissionais disponíveis e cuidar do agendamento para você.</p>
-            <div className="ready-actions">
-              <button className="primary-button pressable" type="button" onClick={onBegin}>
-                <Search size={16} strokeWidth={1.9} />
-                Começar busca
-              </button>
-              <span>Preço, disponibilidade e avaliações serão considerados.</span>
-            </div>
-          </AgentMessage>
+    <article className={styles.operationCard} aria-label={item.title}>
+      <span className={styles.operationIcon}>
+        {active ? (
+          <CircleDashed className="activity-spinner" size={18} strokeWidth={1.7} aria-hidden="true" />
+        ) : (
+          <Check size={17} strokeWidth={2} aria-hidden="true" />
         )}
+      </span>
+      <div>
+        <strong>{item.title}</strong>
+        {item.detail && <p>{item.detail}</p>}
       </div>
-      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} onLocation={onUpdateLocation} placeholder={question === "location" ? "Digite seu endereço, bairro ou CEP" : "Responda ao ServeAI"} quiet /></ComposerDock>}
-    </section>
+    </article>
   );
 }
 
-function ActivityIcon({ status }: { status: "done" | "active" | "pending" }) {
-  if (status === "done") return <Check size={14} strokeWidth={2.2} />;
-  if (status === "active") return <CircleDashed className="activity-spinner" size={16} strokeWidth={1.8} />;
-  return <Circle size={13} strokeWidth={1.5} />;
-}
-
-function WorkScreen({ originalRequest, request, phase, onAdjust }: { originalRequest: string; request: ServiceRequest; phase: number; onAdjust: () => void }) {
-  const currentLabel = activitySteps[Math.min(phase, activitySteps.length - 1)].label;
+function ProvidersItem({ item }: { item: ProvidersCardData }) {
   return (
-    <section className="conversation-screen stage-panel" aria-labelledby="work-title">
-      <div className="conversation-thread">
-        <UserMessage>{originalRequest}</UserMessage>
-        <AgentMessage>
-          <p id="work-title">Pode deixar. Estou encontrando o melhor chaveiro para você.</p>
-          <RequestSummary request={request} compact />
-          <div className="activity-card" aria-live="polite" aria-label={`Progresso: ${currentLabel}`}>
-            <div className="activity-heading"><span className="work-icon"><Search size={17} strokeWidth={1.8} /></span><div><strong>Buscando profissionais</strong><small>Execução em tempo real</small></div><span className="live-pill"><i />AO VIVO</span></div>
-            <div className="activity-list">{activitySteps.map((step, index) => {
-              const status = index < phase ? "done" : index === phase ? "active" : "pending";
-              const detail = index === 0 ? (request.latitude !== null ? "na sua localização GPS" : request.location) : step.detail;
-              return <div className={`activity-row is-${status}`} key={step.label}><span className="activity-status"><ActivityIcon status={status} /></span><div className="activity-copy"><span>{step.label}</span>{detail && <small>{detail}</small>}</div><time>{status === "done" ? step.time : ""}</time></div>;
-            })}</div>
-            <div className="activity-footer"><span>Você pode sair — eu aviso quando concluir.</span><button type="button" onClick={onAdjust}>Ajustar pedido</button></div>
-          </div>
-        </AgentMessage>
+    <article className={styles.timelineCard}>
+      <div className={styles.cardTitle}>
+        <div className="provider-copy">
+          <p className="card-kicker">CANDIDATOS SELECIONADOS</p>
+          <h2>{item.providers.length} prestadores encontrados</h2>
+        </div>
+        <Search size={19} strokeWidth={1.7} aria-hidden="true" />
       </div>
-      <ComposerDock><div className="waiting-composer"><CircleDashed className="activity-spinner" size={16} />ServeAI está trabalhando na sua solicitação</div></ComposerDock>
-    </section>
-  );
-}
-
-function ResultScreen({ originalRequest, request, onReset }: { originalRequest: string; request: ServiceRequest; onReset: () => void }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const calendarUrl = buildGoogleCalendarUrl({
-    title: `${request.service} — ${bookingResult.provider}`,
-    location: request.location,
-    description: `Serviço confirmado com ${bookingResult.provider}. Preço: ${bookingResult.price}.`,
-    date: new Date(),
-    startTime: bookingResult.arrival,
-  });
-  return (
-    <section className="conversation-screen result-screen stage-panel" aria-labelledby="result-title">
-      <div className="conversation-thread">
-        <UserMessage>{originalRequest}</UserMessage>
-        <AgentMessage>
-          <div className="result-message-heading"><span className="success-mark"><Check size={18} strokeWidth={2.3} /></span><div><span className="card-kicker">CONCLUÍDO</span><h1 id="result-title">Encontrei e reservei uma ótima opção.</h1></div></div>
-          <p className="muted-copy">O profissional confirmou o serviço dentro do seu orçamento e horário.</p>
-          <article className="booking-card">
-            <div className="provider-heading"><span className="provider-icon"><KeyRound size={21} strokeWidth={1.8} /></span><div className="provider-copy"><div className="provider-name-line"><h2>{bookingResult.provider}</h2><span className="verified-badge"><Check size={10} strokeWidth={2.5} /></span></div><p><Star size={13} fill="currentColor" />{bookingResult.rating} <span>({bookingResult.reviewCount} avaliações) · {bookingResult.distance}</span></p></div><span className="confirmed-pill"><Check size={12} />Confirmado</span></div>
-            <div className="booking-numbers"><div><span>PREÇO</span><strong>{bookingResult.price}</strong></div><div><span>CHEGADA</span><strong>{bookingResult.arrival}</strong></div><div><span>LOCAL</span><strong>{request.latitude !== null ? "Localização GPS" : request.location}</strong></div></div>
-            <div className="compatibility-list"><span><Check size={14} />Dentro do seu orçamento</span><span><Check size={14} />Disponível hoje</span><span><Check size={14} />Prestador verificado</span></div>
-            <button className="booking-action pressable" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}><span><CalendarDays size={16} />Ver compromisso</span><ChevronDown className={detailsOpen ? "is-rotated" : ""} size={17} /></button>
-            {detailsOpen && <div className="appointment-details"><span><CalendarDays size={16} /><span><small>DATA E HORÁRIO</small>Hoje · 15:30–16:30</span></span><span><MapPin size={16} /><span><small>LOCAL</small>{request.location}</span></span></div>}
-          </article>
-          <div className="confirmation-card">
-            <span><Check size={15} /></span>
-            <div className="confirmation-content">
-              <strong>Agendamento confirmado.</strong>
-              <p>A confirmação foi enviada ao profissional.</p>
+      <div className={styles.providerList}>
+        {item.providers.map((provider, index) => {
+          const website = safeExternalURL(provider.website);
+          const phone = provider.phone?.replace(/[^+\d]/g, "") || null;
+          return (
+            <div className={styles.providerRow} key={provider.id}>
+              <span className={styles.providerRank}>{index + 1}</span>
+              <div className={styles.providerCopy}>
+                <strong>{provider.name}</strong>
+                <p><MapPin size={12} strokeWidth={1.6} />{provider.address}</p>
+                {provider.rating != null && (
+                  <small><Star size={12} fill="currentColor" />{provider.rating.toFixed(1)}{provider.reviewCount != null ? ` (${provider.reviewCount})` : ""}</small>
+                )}
+              </div>
+              <div className={styles.providerLinks}>
+                {phone && <a href={`tel:${phone}`} aria-label={`Ligar para ${provider.name}`}>Ligar</a>}
+                {website && <a href={website} target="_blank" rel="noreferrer" aria-label={`Abrir site de ${provider.name}`}>Site</a>}
+              </div>
             </div>
-          </div>
-          <a className="calendar-button pressable" href={calendarUrl} target="_blank" rel="noreferrer">
-            <span className="calendar-app-icon" aria-hidden="true"><img src="/google-calendar.svg" alt="" /></span>
-            <span className="calendar-button-copy">
-              <strong>Adicionar ao Google Calendar</strong>
-              <small>Hoje, 15:30–16:30 · pronto para salvar</small>
-            </span>
-            <ArrowUpRight className="calendar-button-arrow" size={17} strokeWidth={1.9} aria-hidden="true" />
-          </a>
-        </AgentMessage>
+          );
+        })}
       </div>
-      <ComposerDock><button className="new-request-cta pressable" type="button" onClick={onReset}><Plus size={17} />Fazer nova solicitação</button></ComposerDock>
+    </article>
+  );
+}
+
+function Compatibility({ ok, label }: { ok: boolean | null | undefined; label: string }) {
+  return (
+    <div className={ok === false ? styles.incompatible : ok == null ? styles.unverified : undefined}>
+      {ok === false ? (
+        <AlertTriangle size={15} aria-hidden="true" />
+      ) : ok === true ? (
+        <Check size={15} strokeWidth={2} aria-hidden="true" />
+      ) : (
+        <CircleDashed size={15} aria-hidden="true" />
+      )}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function OfferItem({ item }: { item: OfferCardData }) {
+  return (
+    <article className={styles.timelineCard}>
+      <div className={styles.cardTitle}>
+        <div>
+          <p className="card-kicker">OFERTA RECEBIDA</p>
+          <h2>{item.providerName}</h2>
+        </div>
+        <span className={item.acceptable ? styles.acceptedBadge : styles.reviewBadge}>
+          {item.acceptable ? "Compatível" : "Fora dos critérios"}
+        </span>
+      </div>
+      <div className={styles.offerNumbers}>
+        <div><span>PREÇO</span><strong>{formatCurrency(item.price)}</strong></div>
+        <div><span>DISPONIBILIDADE</span><strong>{formatDateTime(item.availableAt)}</strong></div>
+      </div>
+      <div className="compatibility-list">
+        <Compatibility ok={item.withinBudget} label="Compatibilidade com o orçamento" />
+        <Compatibility ok={item.withinAvailability} label="Compatibilidade com a disponibilidade" />
+      </div>
+    </article>
+  );
+}
+
+function BookingItem({ item }: { item: BookingCardData }) {
+  const calendarEventURL = safeExternalURL(item.calendarEventUrl);
+  return (
+    <article className="booking-card">
+      <div className="provider-heading">
+        <span className="provider-icon"><KeyRound size={23} strokeWidth={1.7} aria-hidden="true" /></span>
+        <div className="provider-copy">
+          <div className="provider-name-line">
+            <h2>{item.providerName}</h2>
+            <span className="verified-badge" aria-label="Reserva confirmada"><Check size={11} strokeWidth={2.3} /></span>
+          </div>
+          <small>Prestador confirmado pelo ServeAI</small>
+        </div>
+      </div>
+
+      <div className={styles.bookingFacts}>
+        <div><CalendarDays size={16} /><span><small>DATA E HORÁRIO</small>{formatDateTime(item.start)}–{new Date(item.end).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></div>
+        <div><MapPin size={16} /><span><small>LOCAL</small>{item.address}</span></div>
+        <div><span className={styles.currencyMark}>R$</span><span><small>PREÇO</small>{formatCurrency(item.price)}</span></div>
+      </div>
+
+      {calendarEventURL && (
+        <a className={`primary-button ${styles.calendarLink}`} href={calendarEventURL} target="_blank" rel="noreferrer">
+          Ver compromisso <ExternalLink size={16} />
+        </a>
+      )}
+    </article>
+  );
+}
+
+function ErrorItem({ item, onRetry }: { item: ErrorCardData; onRetry: () => void }) {
+  return (
+    <article className={styles.errorCard} role="alert">
+      <span><AlertTriangle size={18} strokeWidth={1.8} aria-hidden="true" /></span>
+      <div>
+        <strong>Não conseguimos concluir esta etapa</strong>
+        <p>{item.message}</p>
+      </div>
+      {item.retryable && (
+        <button className="secondary-button pressable" type="button" onClick={onRetry}>
+          <RefreshCw size={14} />Tentar novamente
+        </button>
+      )}
+    </article>
+  );
+}
+
+function TimelineItemView({
+  item,
+  currentStatus,
+  onRetry,
+}: {
+  item: TimelineItem;
+  currentStatus?: RequestStatus;
+  onRetry: () => void;
+}) {
+  switch (item.type) {
+    case "message":
+      return item.role === "user" ? (
+        <div className="user-message-wrap">
+          <div className="user-message">{item.content}</div>
+        </div>
+      ) : (
+        <div className="agent-message">
+          <BrandMark />
+          <div className="agent-content"><p className={styles.agentBubble}>{item.content}</p></div>
+        </div>
+      );
+    case "operation":
+      return <OperationItem item={item} currentStatus={currentStatus} />;
+    case "providers":
+      return <ProvidersItem item={item} />;
+    case "offer":
+      return <OfferItem item={item} />;
+    case "booking":
+      return <BookingItem item={item} />;
+    case "error":
+      return <ErrorItem item={item} onRetry={onRetry} />;
+  }
+}
+
+function ThinkingIndicator() {
+  return (
+    <div className={styles.thinking} role="status" aria-live="polite">
+      <span aria-hidden="true"><i /><i /><i /></span>
+      ServeAI está pensando...
+    </div>
+  );
+}
+
+function ConversationScreen({
+  conversation,
+  pendingMessage,
+  isPosting,
+  draft,
+  onDraftChange,
+  onSubmit,
+  failure,
+  onRetry,
+}: {
+  conversation: ChatConversation | null;
+  pendingMessage: string | null;
+  isPosting: boolean;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSubmit: () => void;
+  failure: RequestFailure | null;
+  onRetry: () => void;
+}) {
+  const threadEnd = useRef<HTMLDivElement>(null);
+  const timeline = conversation?.timeline ?? [];
+
+  useEffect(() => {
+    threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [conversation?.updatedAt, failure, isPosting]);
+
+  const canSend = Boolean(conversation?.canSendMessage) && !isPosting;
+  const placeholder = !conversation
+    ? "Iniciando conversa..."
+    : conversation.status === "booked"
+      ? "Solicitação concluída"
+      : conversation.canSendMessage
+        ? "Responda ao ServeAI..."
+        : "O ServeAI está cuidando desta etapa...";
+
+  return (
+    <section className={`conversation-screen stage-panel ${styles.conversation}`} aria-label="Conversa com o ServeAI">
+      <div className={`conversation-thread ${styles.thread}`} aria-live="polite">
+        {timeline.map((item) => (
+          <TimelineItemView
+            item={item}
+            currentStatus={conversation?.status}
+            key={item.id}
+            onRetry={onRetry}
+          />
+        ))}
+        {pendingMessage && (
+          <div className="user-message-wrap">
+            <div className="user-message">{pendingMessage}</div>
+          </div>
+        )}
+        {isPosting && <ThinkingIndicator />}
+        {failure && (
+          <article className={styles.requestError} role="alert">
+            <AlertTriangle size={18} />
+            <div><strong>Algo não saiu como esperado.</strong><p>{failure.message}</p></div>
+            {failure.retryable && (
+              <button className="secondary-button pressable" type="button" onClick={onRetry}>
+                <RefreshCw size={14} />Tentar novamente
+              </button>
+            )}
+          </article>
+        )}
+        <div ref={threadEnd} />
+      </div>
+
+      <div className={`composer-dock ${styles.chatComposer}`}>
+        <ChatComposer
+          value={draft}
+          onChange={onDraftChange}
+          onSubmit={onSubmit}
+          placeholder={placeholder}
+          disabled={!canSend}
+          busy={isPosting}
+        />
+        <p>O ServeAI pode cometer erros. Confirme informações importantes.</p>
+      </div>
     </section>
   );
 }
 
 export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string }) {
-  const [state, dispatch] = useReducer(fieldFlowReducer, initialFlowState);
-  const [activityPhase, setActivityPhase] = useState(0);
+  const initialDraft = useRef(initialMessage.trim().slice(0, 4_000)).current;
+  const client = useMemo(() => new ServeAIClient(), []);
+  const [conversation, setConversation] = useState<ChatConversation | null>(null);
+  const [draft, setDraft] = useState("");
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
+  const [failure, setFailure] = useState<RequestFailure | null>(null);
+  const [location, setLocation] = useState<BrowserLocation>();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const initialMessageHandled = useRef(false);
+  const [pollRevision, setPollRevision] = useState(0);
+  const session = useRef(0);
+
+  const runSubmit = useCallback(async (action: SubmitAction) => {
+    const currentSession = session.current;
+    setFailure(null);
+    setPendingMessage(action.message);
+    setIsPosting(true);
+    try {
+      const snapshot = action.kind === "create"
+        ? await client.createConversation({
+            message: action.message,
+            clientMessageId: action.clientMessageId,
+            ...(action.location ? { location: action.location } : {}),
+          })
+        : await client.addMessage(action.conversationId, {
+            message: action.message,
+            clientMessageId: action.clientMessageId,
+          });
+      if (session.current !== currentSession) return;
+      setConversation(snapshot);
+      setPendingMessage(null);
+    } catch (error) {
+      if (session.current !== currentSession) return;
+      const apiError = error instanceof ServeAIAPIError ? error : null;
+      setFailure({
+        action,
+        message: apiError?.message ?? "Não foi possível concluir esta ação.",
+        retryable: apiError?.retryable ?? true,
+      });
+    } finally {
+      if (session.current === currentSession) setIsPosting(false);
+    }
+  }, [client]);
+
+  const refresh = useCallback(async (conversationId: string) => {
+    const currentSession = session.current;
+    setFailure(null);
+    try {
+      const snapshot = await client.getConversation(conversationId);
+      if (session.current === currentSession) {
+        setConversation(snapshot);
+        // Keep polling even when a snapshot has the same updatedAt value.
+        setPollRevision((revision) => revision + 1);
+      }
+    } catch (error) {
+      if (session.current !== currentSession) return;
+      const apiError = error instanceof ServeAIAPIError ? error : null;
+      setFailure({
+        action: { kind: "refresh", conversationId },
+        message: apiError?.message ?? "Não foi possível atualizar a conversa.",
+        retryable: apiError?.retryable ?? true,
+      });
+    }
+  }, [client]);
 
   useEffect(() => {
-    const message = initialMessage.trim();
-    if (!message || initialMessageHandled.current) return;
-    initialMessageHandled.current = true;
-    dispatch({ type: "START_REQUEST", message });
-  }, [initialMessage]);
+    if (!conversation?.pollAfterMs || isPosting || failure) return;
+    const timer = window.setTimeout(() => void refresh(conversation.conversationId), conversation.pollAfterMs);
+    return () => window.clearTimeout(timer);
+  }, [conversation?.conversationId, conversation?.pollAfterMs, failure, isPosting, pollRevision, refresh]);
+
+  const start = (message: string) => {
+    const cleanMessage = message.trim();
+    if (!cleanMessage || isPosting) return;
+    setDraft("");
+    void runSubmit({
+      kind: "create",
+      message: cleanMessage,
+      clientMessageId: createClientMessageId(),
+      ...(location ? { location: toRequestLocation(location) } : {}),
+    });
+  };
+
+  const sendMessage = () => {
+    const cleanMessage = draft.trim();
+    if (!conversation || !conversation.canSendMessage || !cleanMessage || isPosting) return;
+    setDraft("");
+    void runSubmit({
+      kind: "message",
+      conversationId: conversation.conversationId,
+      message: cleanMessage,
+      clientMessageId: createClientMessageId(),
+    });
+  };
+
+  const retry = () => {
+    if (!failure) {
+      if (conversation?.status === "failed" && conversation.canSendMessage) {
+        void runSubmit({
+          kind: "message",
+          conversationId: conversation.conversationId,
+          message: "Tentar novamente",
+          clientMessageId: createClientMessageId(),
+        });
+      } else if (conversation) {
+        void refresh(conversation.conversationId);
+      }
+      return;
+    }
+    if (failure.action.kind === "refresh") void refresh(failure.action.conversationId);
+    else void runSubmit(failure.action);
+  };
+
+  const reset = useCallback(() => {
+    session.current += 1;
+    setConversation(null);
+    setDraft("");
+    setPendingMessage(null);
+    setIsPosting(false);
+    setFailure(null);
+    setLocation(undefined);
+    setSidebarOpen(false);
+    setPollRevision(0);
+  }, []);
 
   useEffect(() => {
-    if (state.stage !== "work") return;
-    setActivityPhase(0);
-    const timers = [
-      window.setTimeout(() => setActivityPhase(1), 700), window.setTimeout(() => setActivityPhase(2), 1400),
-      window.setTimeout(() => setActivityPhase(3), 2150), window.setTimeout(() => setActivityPhase(4), 3000),
-      window.setTimeout(() => dispatch({ type: "SHOW_RESULT" }), 4300),
-    ];
-    return () => timers.forEach(window.clearTimeout);
-  }, [state.stage]);
+    const startNewConversation = (event: globalThis.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        reset();
+      }
+    };
+    window.addEventListener("keydown", startNewConversation);
+    return () => window.removeEventListener("keydown", startNewConversation);
+  }, [reset]);
 
-  const stageLabel = useMemo(() => ({ start: "Início", collect: "Coleta", work: "Execução", result: "Resultado" })[state.stage], [state.stage]);
-  const chatTitle = state.stage === "start"
-    ? "ServeAI"
-    : state.request.latitude !== null
-      ? "Chaveiro perto de você"
-      : state.request.location
-        ? `Chaveiro em ${state.request.location}`
-        : "Solicitação de chaveiro";
-  const reset = () => { dispatch({ type: "RESET" }); setSidebarOpen(false); };
+  const active = Boolean(conversation || pendingMessage);
+  const requestLocation = conversation?.serviceRequest.location;
+  const locationLabel = requestLocation?.neighborhood ?? requestLocation?.city;
+  const serviceLabel = conversation?.serviceRequest.serviceType;
+  const conversationTitle = serviceLabel
+    ? `${serviceLabel}${locationLabel ? ` em ${locationLabel}` : ""}`
+    : active ? "Nova solicitação" : "ServeAI";
 
   return (
     <div className="serveai-app">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onReset={reset} />
+      <Sidebar
+        open={sidebarOpen}
+        active={active}
+        title={conversationTitle}
+        onClose={() => setSidebarOpen(false)}
+        onReset={reset}
+      />
       <div className="chat-shell">
-        <ChatHeader stage={state.stage} title={chatTitle} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
+        <ChatHeader
+          status={conversation?.status}
+          active={active}
+          title={conversationTitle}
+          onOpenMenu={() => setSidebarOpen(true)}
+          onReset={reset}
+        />
         <main className="app-main">
-          <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
-          {state.stage === "start" && <StartScreen onStart={(message, location) => dispatch({ type: "START_REQUEST", message, location })} />}
-          {state.stage === "collect" && <CollectScreen originalRequest={state.originalRequest} request={state.request} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onUpdateLocation={(location) => dispatch({ type: "UPDATE_LOCATION", location })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} />}
-          {state.stage === "work" && <WorkScreen originalRequest={state.originalRequest} request={state.request} phase={activityPhase} onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })} />}
-          {state.stage === "result" && <ResultScreen originalRequest={state.originalRequest} request={state.request} onReset={reset} />}
+          {!active ? (
+            <StartScreen
+              onStart={start}
+              initialMessage={initialDraft}
+              location={location}
+              onLocation={setLocation}
+            />
+          ) : (
+            <ConversationScreen
+              conversation={conversation}
+              pendingMessage={pendingMessage}
+              isPosting={isPosting}
+              draft={draft}
+              onDraftChange={setDraft}
+              onSubmit={sendMessage}
+              failure={failure}
+              onRetry={retry}
+            />
+          )}
         </main>
       </div>
     </div>

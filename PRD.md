@@ -404,7 +404,7 @@ The email must use a reply address associated with the request.
 Example:
 
 ```text
-request+req_8127@reply.field.ai
+request+req_8127@reply.serveai.example
 
 ```
 
@@ -1123,7 +1123,7 @@ This proves every difficult technical primitive without making the presentation 
                               │
                               ▼
                      ┌─────────────────┐
-                     │   ServeAI CHAT    │
+                     │  ServeAI CHAT   │
                      │    Next.js      │
                      └────────┬────────┘
                               │
@@ -1150,7 +1150,7 @@ This proves every difficult technical primitive without making the presentation 
                            response
                               │
                               ▼
-                         ServeAI Chat
+                        ServeAI Chat
 
 ```
 

@@ -1,6 +1,6 @@
 # ServeAI — Design System & Product UI Direction
 
-**Version:** Hackathon V1  
+**Version:** Hackathon V1
 **Product:** ServeAI — Autonomous Local Services Agent
 **Primary flow:** User asks for a local service → ServeAI collects constraints → searches providers → contacts them → waits for replies → evaluates offers → books the service.
 
@@ -936,7 +936,7 @@ Up to R$200
 
 Copy:
 
-> You don't need to stay here.  
+> You don't need to stay here.
 > I'll let you know when someone responds.
 
 This state should communicate autonomy.
@@ -1502,13 +1502,13 @@ The task itself is the hero.
 
 # 25. Brand Mark
 
-Use the generated ServeAI symbol together with the wordmark:
+For the hackathon, use:
 
 ```text
 ServeAI
 ```
 
-as the primary mixed-case wordmark.
+as a strong uppercase wordmark.
 
 Typography:
 
@@ -1516,15 +1516,15 @@ Typography:
 - weight 600;
 - slightly tightened tracking.
 
-Keep the symbol visually quiet so the task remains the hero.
+Avoid spending engineering time on a complex logo.
 
-A standalone geometric:
+A simple standalone:
 
 ```text
-S
+F
 ```
 
-formed by two connected paths inside a monochrome rounded square may be used for:
+inside a monochrome rounded square may be used for:
 
 - favicon;
 - app icon;

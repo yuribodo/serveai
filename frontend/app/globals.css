@@ -251,6 +251,8 @@ textarea { resize: none; }
 }
 .chat-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
 .chat-status.is-work i { animation: status-pulse 1.3s ease-out infinite; }
+.chat-status.is-failed { color: #8a3d31; background: #fff1ed; }
+.chat-status.is-failed i { background: #b84d3b; animation: none; }
 @keyframes status-pulse { 50% { box-shadow: 0 0 0 4px rgb(22 134 91 / 12%); } }
 .header-new-chat {
   min-height: 36px;
@@ -677,8 +679,8 @@ textarea { resize: none; }
 }
 
 @media (max-width: 900px) {
-  .sidebar { transform: translateX(-100%); transition: transform 240ms var(--ease-out); box-shadow: 20px 0 50px rgb(20 20 20 / 10%); }
-  .sidebar.is-open { transform: translateX(0); }
+  .sidebar { visibility: hidden; transform: translateX(-100%); transition: transform 240ms var(--ease-out), visibility 0s linear 240ms; box-shadow: 20px 0 50px rgb(20 20 20 / 10%); }
+  .sidebar.is-open { visibility: visible; transform: translateX(0); transition-delay: 0s; }
   .sidebar-backdrop { position: fixed; inset: 0; z-index: 35; display: block; border: 0; background: rgb(20 20 20 / 35%); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
   .sidebar-backdrop.is-visible { opacity: 1; pointer-events: auto; }
   .chat-shell { margin-left: 0; }
@@ -728,9 +730,11 @@ textarea { resize: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stage-panel, .appointment-details, .sidebar, .sidebar-backdrop { transform: none; transition: opacity 160ms ease; }
+  .stage-panel, .appointment-details { transform: none; transition: opacity 160ms ease; }
+  .sidebar, .sidebar-backdrop { transition-duration: 0ms; }
   .pressable, .activity-row, .booking-action > svg { transition-duration: 0ms; }
   .activity-spinner { animation-duration: 1400ms; }
+  .voice-pulse { animation: none !important; }
   .chat-status.is-work i { animation: none; }
 }
 

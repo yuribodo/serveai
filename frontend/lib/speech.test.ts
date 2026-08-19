@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getMicrophoneErrorMessage, mergeSpeechTranscript } from "./speech";
+import { vi } from "vitest";
+import { getMicrophoneErrorMessage, mergeSpeechTranscript, transcribeRecording } from "./speech";
 
 describe("speech helpers", () => {
   it("appends a spoken transcript to text already typed", () => {
@@ -16,5 +17,22 @@ describe("speech helpers", () => {
     expect(getMicrophoneErrorMessage("NotAllowedError")).toContain("Permita");
     expect(getMicrophoneErrorMessage("NotFoundError")).toContain("microfone");
     expect(getMicrophoneErrorMessage("NotReadableError")).toContain("outro aplicativo");
+  });
+
+  it("uploads only the single final recording and leaves the transcript reviewable", async () => {
+    const fetcher = vi.fn(async () => Response.json({ text: "Preciso de um chaveiro" }));
+
+    const transcript = await transcribeRecording(
+      new Blob(["audio"], { type: "audio/webm" }),
+      undefined,
+      fetcher,
+    );
+
+    expect(transcript).toBe("Preciso de um chaveiro");
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/transcribe",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) }),
+    );
   });
 });

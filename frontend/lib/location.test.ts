@@ -4,6 +4,7 @@ import {
   formatLocationLabel,
   getGeolocationErrorMessage,
   requestBrowserLocation,
+  resolveLocationName,
 } from "./location";
 
 describe("browser location", () => {
@@ -41,5 +42,23 @@ describe("browser location", () => {
 
   it("explains when the user denies permission", () => {
     expect(getGeolocationErrorMessage(1)).toContain("Permissão de localização negada");
+  });
+
+  it("reverse geocodes coordinates without putting them in the URL", async () => {
+    const fetcher = vi.fn(async () => Response.json({ label: "Pinheiros, São Paulo" }));
+
+    const resolved = await resolveLocationName(
+      formatBrowserLocation(-23.55052, -46.633308, 12),
+      fetcher,
+    );
+
+    expect(resolved.label).toBe("Pinheiros, São Paulo");
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/location",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ latitude: -23.55052, longitude: -46.633308 }),
+      }),
+    );
   });
 });

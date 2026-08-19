@@ -62,11 +62,14 @@ export async function resolveLocationName(
   location: BrowserLocation,
   fetcher: typeof fetch = fetch,
 ): Promise<BrowserLocation> {
-  const query = new URLSearchParams({
-    latitude: String(location.latitude),
-    longitude: String(location.longitude),
+  const response = await fetcher("/api/location", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      latitude: location.latitude,
+      longitude: location.longitude,
+    }),
   });
-  const response = await fetcher(`/api/location?${query}`);
   if (!response.ok) throw new Error("Não foi possível identificar o nome da localização.");
   const result = await response.json() as { label?: string };
   return { ...location, label: result.label?.trim() || location.label };

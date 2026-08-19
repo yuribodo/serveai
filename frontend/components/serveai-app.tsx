@@ -609,12 +609,12 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
             </div>
           </div>
           <a className="calendar-button pressable" href={calendarUrl} target="_blank" rel="noreferrer">
-            <span className="calendar-app-icon" aria-hidden="true"><CalendarDays size={19} strokeWidth={1.8} /></span>
+            <span className="calendar-app-icon" aria-hidden="true"><img src="/google-calendar.svg" alt="" /></span>
             <span className="calendar-button-copy">
               <strong>Adicionar ao Google Calendar</strong>
-              <small>Hoje · 15:30–16:30 · evento pré-preenchido</small>
+              <small>Hoje, 15:30–16:30 · pronto para salvar</small>
             </span>
-            <span className="calendar-button-arrow" aria-hidden="true"><ArrowUpRight size={15} strokeWidth={1.8} /></span>
+            <ArrowUpRight className="calendar-button-arrow" size={17} strokeWidth={1.9} aria-hidden="true" />
           </a>
         </AgentMessage>
       </div>

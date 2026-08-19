@@ -103,4 +103,31 @@ describe("ServeAIClient", () => {
       retryable: true,
     });
   });
+
+  it("runs a clearly labelled local demo when no backend URL is configured", async () => {
+    const client = new ServeAIClient(null);
+    const created = await client.createConversation({
+      message: "Preciso de um chaveiro em Pinheiros",
+      clientMessageId: "demo-create",
+    });
+    const waiting = await client.addMessage(created.conversationId, {
+      message: "Até R$ 250, hoje à tarde, na Rua Exemplo, 10",
+      clientMessageId: "demo-details",
+    });
+    const booked = await client.getConversation(created.conversationId);
+
+    expect(created.status).toBe("needs_user_input");
+    expect(waiting.status).toBe("waiting_for_replies");
+    expect(waiting.pollAfterMs).toBe(1_000);
+    expect(booked.status).toBe("booked");
+    expect(booked.pollAfterMs).toBeNull();
+    expect(booked.timeline.some((item) => item.type === "providers")).toBe(true);
+    expect(booked.timeline.some((item) => item.type === "offer")).toBe(true);
+    expect(booked.timeline.some((item) => item.type === "booking")).toBe(true);
+    expect(
+      booked.timeline.some(
+        (item) => item.type === "message" && item.content.includes("são simulados"),
+      ),
+    ).toBe(true);
+  });
 });

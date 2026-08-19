@@ -142,7 +142,7 @@ export class ServeAIAPIError extends Error {
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-const defaultAPIURL = process.env.NEXT_PUBLIC_SERVEAI_API_URL?.trim() || "http://localhost:8000";
+const configuredAPIURL = process.env.NEXT_PUBLIC_SERVEAI_API_URL?.trim() || null;
 
 function errorDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== "object" || !("detail" in payload)) return null;
@@ -170,13 +170,16 @@ export function normalizeConversation(snapshot: ChatConversation): ChatConversat
 }
 
 export class ServeAIClient {
-  private readonly baseURL: string;
+  private readonly baseURL: string | null;
+  private readonly demo: DemoConversationStore | null;
 
-  constructor(baseURL = defaultAPIURL, private readonly fetcher: Fetcher = fetch) {
-    this.baseURL = baseURL.trim().replace(/\/+$/, "");
+  constructor(baseURL: string | null = configuredAPIURL, private readonly fetcher: Fetcher = fetch) {
+    this.baseURL = baseURL?.trim().replace(/\/+$/, "") || null;
+    this.demo = this.baseURL ? null : new DemoConversationStore();
   }
 
   createConversation(input: CreateConversationInput): Promise<ChatConversation> {
+    if (this.demo) return this.demo.createConversation(input);
     return this.request("/api/v1/conversations", {
       method: "POST",
       body: JSON.stringify(input),
@@ -184,6 +187,7 @@ export class ServeAIClient {
   }
 
   addMessage(conversationId: string, input: AddMessageInput): Promise<ChatConversation> {
+    if (this.demo) return this.demo.addMessage(conversationId, input);
     return this.request(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: "POST",
       body: JSON.stringify(input),
@@ -191,13 +195,14 @@ export class ServeAIClient {
   }
 
   getConversation(conversationId: string): Promise<ChatConversation> {
+    if (this.demo) return this.demo.getConversation(conversationId);
     return this.request(`/api/v1/conversations/${encodeURIComponent(conversationId)}`);
   }
 
   private async request(path: string, init?: RequestInit): Promise<ChatConversation> {
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseURL}${path}`, {
+      response = await this.fetcher(`${this.baseURL ?? ""}${path}`, {
         ...init,
         headers: {
           Accept: "application/json",
@@ -231,6 +236,211 @@ export class ServeAIClient {
 
     return normalizeConversation((await response.json()) as ChatConversation);
   }
+}
+
+class DemoConversationStore {
+  private conversation: ChatConversation | null = null;
+  private readonly clientMessageIds = new Set<string>();
+  private sequence = 0;
+
+  async createConversation(input: CreateConversationInput): Promise<ChatConversation> {
+    if (this.conversation && this.clientMessageIds.has(input.clientMessageId)) {
+      return structuredClone(this.conversation);
+    }
+
+    const now = new Date();
+    const conversationId = crypto.randomUUID();
+    this.clientMessageIds.add(input.clientMessageId);
+    this.conversation = {
+      conversationId,
+      status: "needs_user_input",
+      canSendMessage: true,
+      pollAfterMs: null,
+      timeline: [
+        this.message("user", input.message, now),
+        this.message(
+          "assistant",
+          "Para eu comparar as opções, informe seu orçamento máximo, o melhor horário e o endereço completo.",
+          new Date(now.getTime() + 100),
+        ),
+      ],
+      serviceRequest: {
+        serviceType: inferDemoService(input.message),
+        problem: input.message,
+        location: input.location ?? { neighborhood: "Pinheiros", city: "São Paulo" },
+        availability: [],
+      },
+      updatedAt: now.toISOString(),
+    };
+    return structuredClone(this.conversation);
+  }
+
+  async addMessage(
+    conversationId: string,
+    input: AddMessageInput,
+  ): Promise<ChatConversation> {
+    const conversation = this.requireConversation(conversationId);
+    if (this.clientMessageIds.has(input.clientMessageId)) return structuredClone(conversation);
+
+    this.clientMessageIds.add(input.clientMessageId);
+    const now = new Date();
+    const start = new Date(now.getTime() + 2 * 60 * 60 * 1_000);
+    const end = new Date(start.getTime() + 3 * 60 * 60 * 1_000);
+    conversation.serviceRequest = {
+      ...conversation.serviceRequest,
+      budget: { maximum: 250, currency: "BRL" },
+      availability: [{ start: start.toISOString(), end: end.toISOString() }],
+      location: {
+        ...conversation.serviceRequest.location,
+        address: "Endereço informado na conversa (demonstração)",
+      },
+    };
+    conversation.timeline.push(
+      this.message("user", input.message, now),
+      this.message(
+        "assistant",
+        "Tenho tudo o que preciso. Vou demonstrar a busca e o contato agora.",
+        new Date(now.getTime() + 100),
+      ),
+      this.operation("searching", "Procurando prestadores", "Pinheiros, São Paulo", now),
+      {
+        id: this.id("providers"),
+        type: "providers",
+        providers: [
+          {
+            id: "demo-provider-1",
+            name: "Chaveiro Pinheiros Demo",
+            address: "Atendimento demonstrativo em Pinheiros",
+            rating: 4.9,
+            reviewCount: 214,
+          },
+          {
+            id: "demo-provider-2",
+            name: "Chaves Express Demo",
+            address: "Atendimento demonstrativo em São Paulo",
+            rating: 4.8,
+            reviewCount: 138,
+          },
+          {
+            id: "demo-provider-3",
+            name: "Chaveiro Central Demo",
+            address: "Atendimento demonstrativo na região",
+            rating: 4.7,
+            reviewCount: 89,
+          },
+        ],
+        createdAt: new Date(now.getTime() + 200).toISOString(),
+      },
+      this.operation("contacting", "Contatando prestadores", "Simulação segura", now),
+      this.operation("waiting_for_replies", "Aguardando respostas", "Modo demonstração", now),
+    );
+    conversation.status = "waiting_for_replies";
+    conversation.canSendMessage = false;
+    conversation.pollAfterMs = 1_000;
+    conversation.updatedAt = now.toISOString();
+    return structuredClone(conversation);
+  }
+
+  async getConversation(conversationId: string): Promise<ChatConversation> {
+    const conversation = this.requireConversation(conversationId);
+    if (conversation.status !== "waiting_for_replies") return structuredClone(conversation);
+
+    const now = new Date();
+    const start = new Date(now.getTime() + 2 * 60 * 60 * 1_000);
+    const end = new Date(start.getTime() + 60 * 60 * 1_000);
+    const calendarURL = new URL("https://calendar.google.com/calendar/render");
+    calendarURL.search = new URLSearchParams({
+      action: "TEMPLATE",
+      text: "ServeAI Demo — Chaveiro Pinheiros",
+      details: "Compromisso simulado pela demonstração da ServeAI.",
+      location: "Endereço informado na conversa (demonstração)",
+    }).toString();
+    conversation.timeline.push(
+      {
+        id: this.id("offer"),
+        type: "offer",
+        providerId: "demo-provider-1",
+        providerName: "Chaveiro Pinheiros Demo",
+        price: 180,
+        availableAt: start.toISOString(),
+        withinBudget: true,
+        withinAvailability: true,
+        acceptable: true,
+        createdAt: now.toISOString(),
+      },
+      {
+        id: this.id("booking"),
+        type: "booking",
+        providerName: "Chaveiro Pinheiros Demo",
+        start: start.toISOString(),
+        end: end.toISOString(),
+        price: 180,
+        address: "Endereço informado na conversa (demonstração)",
+        calendarEventUrl: calendarURL.toString(),
+        createdAt: new Date(now.getTime() + 100).toISOString(),
+      },
+      this.message(
+        "assistant",
+        "Demonstração concluída — a resposta do prestador e o agendamento acima são simulados. Configure a URL do backend para ativar o fluxo real.",
+        new Date(now.getTime() + 200),
+      ),
+    );
+    conversation.status = "booked";
+    conversation.canSendMessage = false;
+    conversation.pollAfterMs = null;
+    conversation.updatedAt = now.toISOString();
+    return structuredClone(conversation);
+  }
+
+  private requireConversation(conversationId: string): ChatConversation {
+    if (!this.conversation || this.conversation.conversationId !== conversationId) {
+      throw new ServeAIAPIError("Conversa de demonstração não encontrada.", 404, false);
+    }
+    return this.conversation;
+  }
+
+  private id(prefix: string): string {
+    this.sequence += 1;
+    return `demo-${prefix}-${this.sequence}`;
+  }
+
+  private message(
+    role: TextMessage["role"],
+    content: string,
+    createdAt: Date,
+  ): TextMessage {
+    return {
+      id: this.id("message"),
+      type: "message",
+      role,
+      content,
+      createdAt: createdAt.toISOString(),
+    };
+  }
+
+  private operation(
+    status: RequestStatus,
+    title: string,
+    detail: string,
+    createdAt: Date,
+  ): OperationCard {
+    return {
+      id: this.id("operation"),
+      type: "operation",
+      status,
+      title,
+      detail,
+      createdAt: createdAt.toISOString(),
+    };
+  }
+}
+
+function inferDemoService(message: string): string {
+  const normalized = message.toLocaleLowerCase("pt-BR");
+  if (normalized.includes("encan")) return "encanador";
+  if (normalized.includes("eletric")) return "eletricista";
+  if (normalized.includes("limpeza") || normalized.includes("faxina")) return "limpeza";
+  return "chaveiro";
 }
 
 export function createClientMessageId(): string {

@@ -3,7 +3,7 @@
   "env": {
     "DEMO_DEPLOYMENT": "true",
     "AI_GATEWAY_ENABLED": "false",
-    "AI_GATEWAY_MODEL": "openai/gpt-5.6-luna",
+    "AI_GATEWAY_MODEL": "openai/gpt-5.4-mini",
     "REPOSITORY_BACKEND": "memory",
     "DEMO_AUTO_REPLY": "true",
     "DEMO_AUTO_REPLY_DELAY_SECONDS": "0",

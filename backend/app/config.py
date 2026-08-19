@@ -37,11 +37,11 @@ class Settings(BaseSettings):
     supabase_secret_key: SecretStr | None = None
 
     openai_api_key: SecretStr | None = None
-    openai_model: str = "gpt-5.6-luna"
+    openai_model: str = "gpt-5.4-mini"
     openai_timeout_seconds: float = 25.0
     ai_gateway_enabled: bool = False
     ai_gateway_api_key: SecretStr | None = None
-    ai_gateway_model: str = "openai/gpt-5.6-luna"
+    ai_gateway_model: str = "openai/gpt-5.4-mini"
     ai_gateway_base_url: str = "https://ai-gateway.vercel.sh/v1"
     vercel_oidc_token: SecretStr | None = None
 

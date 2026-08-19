@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -79,3 +79,26 @@ async def test_offer_fallback_prefers_explicit_time_over_greeting_period() -> No
     assert question.status is OfferStatus.QUESTION
     assert question.question == "Qual é o tipo da fechadura?"
     assert unavailable.status is OfferStatus.UNAVAILABLE
+
+
+@pytest.mark.asyncio
+async def test_requirements_understand_urgent_natural_language_in_one_turn() -> None:
+    now = datetime(2026, 8, 19, 15, tzinfo=ZoneInfo("America/Sao_Paulo"))
+
+    request = await RuleBasedRequirementsExtractor().extract(
+        ServiceRequestData(),
+        [
+            (
+                "user",
+                "Quero um chaveiro para agora, minha porta emperrou, quero gastar no máximo 100",
+            )
+        ],
+        now,
+    )
+
+    assert request.service_type == "chaveiro"
+    assert request.problem is not None
+    assert request.budget is not None and request.budget.maximum == 100
+    assert request.availability[0].start == now
+    assert request.availability[0].end == now + timedelta(hours=4)
+    assert request.urgency == "immediate"

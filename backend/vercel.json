@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "env": {
+    "DEMO_DEPLOYMENT": "true",
+    "AI_GATEWAY_ENABLED": "true",
+    "AI_GATEWAY_MODEL": "openai/gpt-5.4-mini",
+    "REPOSITORY_BACKEND": "memory",
+    "DEMO_AUTO_REPLY": "true",
+    "DEMO_AUTO_REPLY_DELAY_SECONDS": "0",
+    "FRONTEND_ORIGINS": "*"
+  },
+  "functions": {
+    "app/server.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{tests/**,docs/**,supabase/**,.venv/**,.pytest_cache/**,.mypy_cache/**,.ruff_cache/**}"
+    }
+  }
+}

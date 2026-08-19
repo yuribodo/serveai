@@ -180,12 +180,12 @@ function Sidebar({
         </nav>
 
         <div className="sidebar-footer">
-          <button className="sidebar-footer-item" type="button" disabled aria-label="Configurações indisponíveis na demonstração">
+          <button className="sidebar-footer-item" type="button" disabled aria-label="Configurações indisponíveis">
             <Settings size={17} strokeWidth={1.6} /><span>Configurações</span>
           </button>
           <div className="account-button">
             <span className="account-avatar"><UserRound size={16} strokeWidth={1.7} /></span>
-            <span><strong>ServeAI Demo</strong><small>Sessão local</small></span>
+            <span><strong>ServeAI Online</strong><small>API conectada</small></span>
           </div>
         </div>
       </aside>

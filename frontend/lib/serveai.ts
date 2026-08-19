@@ -142,7 +142,12 @@ export class ServeAIAPIError extends Error {
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-const configuredAPIURL = process.env.NEXT_PUBLIC_SERVEAI_API_URL?.trim() || null;
+const requestedAPIURL = process.env.NEXT_PUBLIC_SERVEAI_API_URL?.trim() || null;
+const configuredAPIURL =
+  process.env.NODE_ENV === "production" &&
+  (!requestedAPIURL || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestedAPIURL))
+    ? "https://serveai-api.vercel.app"
+    : requestedAPIURL;
 
 function errorDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== "object" || !("detail" in payload)) return null;
@@ -173,7 +178,10 @@ export class ServeAIClient {
   private readonly baseURL: string | null;
   private readonly demo: DemoConversationStore | null;
 
-  constructor(baseURL: string | null = configuredAPIURL, private readonly fetcher: Fetcher = fetch) {
+  constructor(
+    baseURL: string | null = configuredAPIURL,
+    private readonly fetcher: Fetcher = globalThis.fetch.bind(globalThis),
+  ) {
     this.baseURL = baseURL?.trim().replace(/\/+$/, "") || null;
     this.demo = this.baseURL ? null : new DemoConversationStore();
   }

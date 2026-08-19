@@ -13,6 +13,7 @@ from app.application.ports import (
     ContactChannel,
     ConversationNotFoundError,
     ConversationRepository,
+    ConversationResponder,
     OfferInterpreter,
     ProviderDiscovery,
     RequirementsExtractor,
@@ -46,6 +47,7 @@ class ConversationOrchestrator:
         *,
         repository: ConversationRepository,
         requirements_extractor: RequirementsExtractor,
+        conversation_responder: ConversationResponder | None = None,
         offer_interpreter: OfferInterpreter,
         provider_discovery: ProviderDiscovery,
         contact_channel: ContactChannel,
@@ -56,6 +58,7 @@ class ConversationOrchestrator:
     ) -> None:
         self._repository = repository
         self._requirements_extractor = requirements_extractor
+        self._conversation_responder = conversation_responder
         self._offer_interpreter = offer_interpreter
         self._provider_discovery = provider_discovery
         self._contact_channel = contact_channel
@@ -377,7 +380,13 @@ class ConversationOrchestrator:
             if question is not None:
                 if aggregate.status == RequestStatus.NEEDS_USER_INPUT:
                     transition(aggregate, RequestStatus.COLLECTING_REQUIREMENTS, now)
-                aggregate.add_message(role="assistant", content=question, now=now)
+                response = question
+                if self._conversation_responder is not None:
+                    response = await self._conversation_responder.reply(
+                        [(message.role, message.content) for message in aggregate.messages],
+                        question,
+                    )
+                aggregate.add_message(role="assistant", content=response, now=now)
                 await self._repository.save(aggregate)
                 return
 

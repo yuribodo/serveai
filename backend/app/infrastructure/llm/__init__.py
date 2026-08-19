@@ -1,6 +1,7 @@
 """Language-model adapters."""
 
 from app.infrastructure.llm.adapters import (
+    LangChainConversationResponder,
     LangChainOfferInterpreter,
     LangChainRequirementsExtractor,
     ParsedOffer,
@@ -9,6 +10,7 @@ from app.infrastructure.llm.adapters import (
 )
 
 __all__ = [
+    "LangChainConversationResponder",
     "LangChainOfferInterpreter",
     "LangChainRequirementsExtractor",
     "ParsedOffer",

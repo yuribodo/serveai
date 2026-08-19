@@ -46,6 +46,14 @@ class RequirementsExtractor(Protocol):
     ) -> ServiceRequestData: ...
 
 
+class ConversationResponder(Protocol):
+    async def reply(
+        self,
+        conversation_text: list[tuple[str, str]],
+        required_question: str,
+    ) -> str: ...
+
+
 @dataclass(frozen=True, slots=True)
 class InterpretedOffer:
     status: OfferStatus

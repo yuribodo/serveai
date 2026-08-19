@@ -10,6 +10,7 @@ from app.application.ports import (
     CalendarGateway,
     ContactChannel,
     ConversationRepository,
+    ConversationResponder,
     OfferInterpreter,
     ProviderDiscovery,
     RequirementsExtractor,
@@ -19,6 +20,7 @@ from app.infrastructure.calendar.adapters import DemoCalendarGateway, GoogleCale
 from app.infrastructure.contact.adapters import DemoEmailChannel, ResendEmailChannel
 from app.infrastructure.discovery.adapters import DemoProviderDiscovery, GooglePlacesDiscovery
 from app.infrastructure.llm.adapters import (
+    LangChainConversationResponder,
     LangChainOfferInterpreter,
     LangChainRequirementsExtractor,
     RuleBasedOfferInterpreter,
@@ -49,6 +51,7 @@ def build_container(settings: Settings) -> ApplicationContainer:
     fallback_requirements = RuleBasedRequirementsExtractor()
     fallback_offer = RuleBasedOfferInterpreter()
     requirements: RequirementsExtractor
+    conversation_responder: ConversationResponder | None = None
     offer_interpreter: OfferInterpreter
     if settings.has_ai_gateway:
         api_key = _secret(settings.ai_gateway_api_key or settings.vercel_oidc_token)
@@ -66,6 +69,12 @@ def build_container(settings: Settings) -> ApplicationContainer:
             timeout_seconds=settings.openai_timeout_seconds,
             fallback=fallback_offer,
         )
+        conversation_responder = LangChainConversationResponder(
+            api_key=api_key,
+            model=settings.ai_gateway_model,
+            base_url=settings.ai_gateway_base_url,
+            timeout_seconds=settings.openai_timeout_seconds,
+        )
         llm_mode: AdapterMode = "live"
     elif settings.has_openai:
         api_key = _secret(settings.openai_api_key)
@@ -80,6 +89,11 @@ def build_container(settings: Settings) -> ApplicationContainer:
             model=settings.openai_model,
             timeout_seconds=settings.openai_timeout_seconds,
             fallback=fallback_offer,
+        )
+        conversation_responder = LangChainConversationResponder(
+            api_key=api_key,
+            model=settings.openai_model,
+            timeout_seconds=settings.openai_timeout_seconds,
         )
         llm_mode = "live"
     else:
@@ -129,6 +143,7 @@ def build_container(settings: Settings) -> ApplicationContainer:
     orchestrator = ConversationOrchestrator(
         repository=repository,
         requirements_extractor=requirements,
+        conversation_responder=conversation_responder,
         offer_interpreter=offer_interpreter,
         provider_discovery=discovery,
         contact_channel=contact,

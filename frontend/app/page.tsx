@@ -1,5 +1,5 @@
-import { ServeAIApp } from "@/components/serveai-app";
+import { LandingPage } from "@/components/landing-page";
 
 export default function Home() {
-  return <ServeAIApp />;
+  return <LandingPage />;
 }

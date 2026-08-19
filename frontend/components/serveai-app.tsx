@@ -558,10 +558,18 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
   );
 }
 
-export function ServeAIApp() {
+export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string }) {
   const [state, dispatch] = useReducer(fieldFlowReducer, initialFlowState);
   const [activityPhase, setActivityPhase] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const initialMessageHandled = useRef(false);
+
+  useEffect(() => {
+    const message = initialMessage.trim();
+    if (!message || initialMessageHandled.current) return;
+    initialMessageHandled.current = true;
+    dispatch({ type: "START_REQUEST", message });
+  }, [initialMessage]);
 
   useEffect(() => {
     if (state.stage !== "work") return;

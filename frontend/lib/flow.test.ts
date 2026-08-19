@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fieldFlowReducer, initialFlowState, isRequestReady } from "./flow";
 
-describe("FIELD flow", () => {
+describe("ServeAI flow", () => {
   it("does not start with an empty request", () => {
     expect(fieldFlowReducer(initialFlowState, { type: "START_REQUEST", message: "  " })).toEqual(
       initialFlowState,

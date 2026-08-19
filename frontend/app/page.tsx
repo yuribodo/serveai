@@ -1,5 +1,5 @@
-import { FieldApp } from "@/components/field-app";
+import { ServeAIApp } from "@/components/serveai-app";
 
 export default function Home() {
-  return <FieldApp />;
+  return <ServeAIApp />;
 }

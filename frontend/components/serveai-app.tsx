@@ -57,7 +57,11 @@ const activitySteps = [
 ];
 
 function BrandMark() {
-  return <span className="brand-mark" aria-hidden="true">F</span>;
+  return (
+    <span className="brand-mark" aria-hidden="true">
+      <img src="/serveai-logo.png" alt="" />
+    </span>
+  );
 }
 
 function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => void; onReset: () => void }) {
@@ -67,7 +71,7 @@ function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => voi
       <aside className={`sidebar ${open ? "is-open" : ""}`} aria-label="Navegação principal">
         <div className="sidebar-top">
           <button className="sidebar-brand pressable" type="button" onClick={onReset} aria-label="Ir para o início">
-            <BrandMark /><span>FIELD</span>
+            <BrandMark /><span>ServeAI</span>
           </button>
           <button className="icon-button sidebar-close pressable" type="button" onClick={onClose} aria-label="Recolher menu">
             <PanelLeftClose size={18} strokeWidth={1.7} />
@@ -105,7 +109,7 @@ function ChatHeader({ stage, onOpenMenu, onReset }: { stage: string; onOpenMenu:
     <header className="chat-header">
       <div className="chat-header-left">
         <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
-        <div className="chat-title"><strong>{stage === "start" ? "FIELD" : "Chaveiro em Pinheiros"}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
+        <div className="chat-title"><strong>{stage === "start" ? "ServeAI" : "Chaveiro em Pinheiros"}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
       </div>
       <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Novo chat</span></button>
     </header>
@@ -383,7 +387,7 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
 }
 
 function ComposerDock({ children }: { children: ReactNode }) {
-  return <div className="composer-dock">{children}<p>O FIELD pode cometer erros. Confirme informações importantes.</p></div>;
+  return <div className="composer-dock">{children}<p>O ServeAI pode cometer erros. Confirme informações importantes.</p></div>;
 }
 
 function StartScreen({ onStart }: { onStart: (message: string) => void }) {
@@ -495,7 +499,7 @@ function CollectScreen({ originalRequest, request, onUpdate, onBegin }: { origin
           </AgentMessage>
         )}
       </div>
-      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} placeholder="Responda ao FIELD" quiet /></ComposerDock>}
+      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} placeholder="Responda ao ServeAI" quiet /></ComposerDock>}
     </section>
   );
 }
@@ -525,7 +529,7 @@ function WorkScreen({ originalRequest, request, phase, onAdjust }: { originalReq
           </div>
         </AgentMessage>
       </div>
-      <ComposerDock><div className="waiting-composer"><CircleDashed className="activity-spinner" size={16} />FIELD está trabalhando na sua solicitação</div></ComposerDock>
+      <ComposerDock><div className="waiting-composer"><CircleDashed className="activity-spinner" size={16} />ServeAI está trabalhando na sua solicitação</div></ComposerDock>
     </section>
   );
 }
@@ -554,7 +558,7 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
   );
 }
 
-export function FieldApp() {
+export function ServeAIApp() {
   const [state, dispatch] = useReducer(fieldFlowReducer, initialFlowState);
   const [activityPhase, setActivityPhase] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -574,7 +578,7 @@ export function FieldApp() {
   const reset = () => { dispatch({ type: "RESET" }); setSidebarOpen(false); };
 
   return (
-    <div className="field-app">
+    <div className="serveai-app">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onReset={reset} />
       <div className="chat-shell">
         <ChatHeader stage={state.stage} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />

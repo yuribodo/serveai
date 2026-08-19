@@ -456,6 +456,10 @@ function ThinkingIndicator() {
   );
 }
 
+function isToolResult(item: TimelineItem): boolean {
+  return item.type === "operation" || item.type === "providers" || item.type === "offer" || item.type === "booking";
+}
+
 function ConversationScreen({
   conversation,
   pendingMessage,
@@ -476,11 +480,33 @@ function ConversationScreen({
   onRetry: () => void;
 }) {
   const threadEnd = useRef<HTMLDivElement>(null);
+  const scheduledToolIds = useRef(new Set<string>());
+  const revealTimers = useRef<number[]>([]);
+  const nextRevealAt = useRef(0);
+  const [revealedToolIds, setRevealedToolIds] = useState<Set<string>>(() => new Set());
   const timeline = conversation?.timeline ?? [];
 
   useEffect(() => {
     threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [conversation?.updatedAt, failure, isPosting]);
+  }, [conversation?.updatedAt, failure, isPosting, revealedToolIds.size]);
+
+  useEffect(() => {
+    const now = Date.now();
+    for (const item of timeline) {
+      if (!isToolResult(item) || scheduledToolIds.current.has(item.id)) continue;
+      scheduledToolIds.current.add(item.id);
+      const delay = Math.max(350, nextRevealAt.current - now);
+      nextRevealAt.current = now + delay + 900;
+      const timer = window.setTimeout(() => {
+        setRevealedToolIds((current) => new Set(current).add(item.id));
+      }, delay);
+      revealTimers.current.push(timer);
+    }
+  }, [timeline]);
+
+  useEffect(() => () => {
+    for (const timer of revealTimers.current) window.clearTimeout(timer);
+  }, []);
 
   const canSend = Boolean(conversation?.canSendMessage) && !isPosting;
   const placeholder = !conversation
@@ -494,14 +520,28 @@ function ConversationScreen({
   return (
     <section className={`conversation-screen stage-panel ${styles.conversation}`} aria-label="Conversa com o ServeAI">
       <div className={`conversation-thread ${styles.thread}`} aria-live="polite">
-        {timeline.map((item) => (
-          <TimelineItemView
-            item={item}
-            currentStatus={conversation?.status}
-            key={item.id}
-            onRetry={onRetry}
-          />
-        ))}
+        {timeline.map((item) => {
+          if (isToolResult(item) && !revealedToolIds.has(item.id)) return null;
+          if (isToolResult(item)) {
+            return (
+              <div className={styles.toolReveal} key={item.id}>
+                <TimelineItemView
+                  item={item}
+                  currentStatus={conversation?.status}
+                  onRetry={onRetry}
+                />
+              </div>
+            );
+          }
+          return (
+            <TimelineItemView
+              key={item.id}
+              item={item}
+              currentStatus={conversation?.status}
+              onRetry={onRetry}
+            />
+          );
+        })}
         {pendingMessage && (
           <div className="user-message-wrap">
             <div className="user-message">{pendingMessage}</div>

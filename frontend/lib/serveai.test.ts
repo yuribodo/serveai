@@ -126,7 +126,9 @@ describe("ServeAIClient", () => {
       ],
     };
     let call = 0;
-    const fetcher = vi.fn(async () => {
+    const requests: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push([input, init]);
       call += 1;
       return call === 1
         ? new Response(JSON.stringify({ detail: "Conversa não encontrada." }), { status: 404 })
@@ -145,8 +147,8 @@ describe("ServeAIClient", () => {
       "Estou em Pinheiros",
       "Qual é a sua localização?",
     ]);
-    expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain("Preciso de um chaveiro");
-    expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain("Estou em Pinheiros");
+    expect(String(requests[1]?.[1]?.body)).toContain("Preciso de um chaveiro");
+    expect(String(requests[1]?.[1]?.body)).toContain("Estou em Pinheiros");
   });
 
   it("runs a clearly labelled local demo when no backend URL is configured", async () => {

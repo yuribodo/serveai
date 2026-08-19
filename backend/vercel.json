@@ -7,7 +7,7 @@
     "REPOSITORY_BACKEND": "memory",
     "DEMO_AUTO_REPLY": "true",
     "DEMO_AUTO_REPLY_DELAY_SECONDS": "0",
-    "FRONTEND_ORIGINS": "*"
+    "FRONTEND_ORIGINS": "[\"*\"]"
   },
   "functions": {
     "app/server.py": {

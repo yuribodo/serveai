@@ -5,9 +5,19 @@ export type EditableField = "service" | "location" | "availability" | "problem" 
 export interface ServiceRequest {
   service: string;
   location: string;
+  latitude: number | null;
+  longitude: number | null;
+  locationAccuracy: number | null;
   availability: string;
   problem: string;
   budget: string;
+}
+
+export interface RequestLocation {
+  label: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
 }
 
 export interface ProviderOffer {
@@ -31,8 +41,9 @@ export interface FlowState {
 }
 
 export type FlowAction =
-  | { type: "START_REQUEST"; message: string }
+  | { type: "START_REQUEST"; message: string; location?: RequestLocation }
   | { type: "UPDATE_FIELD"; field: EditableField; value: string }
+  | { type: "UPDATE_LOCATION"; location: RequestLocation }
   | { type: "BEGIN_WORK" }
   | { type: "SHOW_RESULT" }
   | { type: "RETURN_TO_COLLECTION" }
@@ -40,7 +51,10 @@ export type FlowAction =
 
 export const emptyRequest: ServiceRequest = {
   service: "Chaveiro",
-  location: "Pinheiros, São Paulo",
+  location: "",
+  latitude: null,
+  longitude: null,
+  locationAccuracy: null,
   availability: "Hoje · 14:00–18:00",
   problem: "",
   budget: "",
@@ -64,7 +78,8 @@ export const bookingResult: BookingResult = {
 };
 
 export function isRequestReady(request: ServiceRequest) {
-  return Object.values(request).every((value) => value.trim().length > 0);
+  return (["service", "location", "availability", "problem", "budget"] as const)
+    .every((field) => request[field].trim().length > 0);
 }
 
 export function fieldFlowReducer(state: FlowState, action: FlowAction): FlowState {
@@ -74,12 +89,37 @@ export function fieldFlowReducer(state: FlowState, action: FlowAction): FlowStat
       return {
         stage: "collect",
         originalRequest: action.message.trim(),
-        request: { ...emptyRequest },
+        request: action.location ? {
+          ...emptyRequest,
+          location: action.location.label,
+          latitude: action.location.latitude,
+          longitude: action.location.longitude,
+          locationAccuracy: action.location.accuracy,
+        } : { ...emptyRequest },
       };
     case "UPDATE_FIELD":
       return {
         ...state,
-        request: { ...state.request, [action.field]: action.value.trim() },
+        request: {
+          ...state.request,
+          [action.field]: action.value.trim(),
+          ...(action.field === "location" ? {
+            latitude: null,
+            longitude: null,
+            locationAccuracy: null,
+          } : {}),
+        },
+      };
+    case "UPDATE_LOCATION":
+      return {
+        ...state,
+        request: {
+          ...state.request,
+          location: action.location.label,
+          latitude: action.location.latitude,
+          longitude: action.location.longitude,
+          locationAccuracy: action.location.accuracy,
+        },
       };
     case "BEGIN_WORK":
       return isRequestReady(state.request) ? { ...state, stage: "work" } : state;

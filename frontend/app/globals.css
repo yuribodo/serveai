@@ -345,6 +345,10 @@ textarea { resize: none; }
 .voice-button[aria-pressed="true"] .voice-pulse { animation: voice-pulse 1.4s var(--ease-out) infinite; }
 .voice-feedback { margin: 3px 2px 7px; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .voice-feedback.is-error { color: #9f2d20; }
+.location-feedback { margin: 3px 2px 7px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.location-feedback.is-error { color: #9f2d20; }
+.location-attribution { margin: 3px 2px 7px; color: var(--tertiary); font-size: 10px; line-height: 1.4; }
+.location-attribution a { color: inherit; }
 @keyframes voice-pulse {
   0% { opacity: .65; transform: scale(.82); }
   75%, 100% { opacity: 0; transform: scale(1.35); }
@@ -362,6 +366,9 @@ textarea { resize: none; }
   font-size: 11px;
   cursor: pointer;
 }
+.location-pill:disabled { cursor: wait; opacity: .7; }
+.location-pill.is-success { color: var(--success); border-color: #b8ddcc; background: var(--success-soft); }
+.location-pill span { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-submit {
   width: 36px;
   height: 36px;

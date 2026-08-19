@@ -10,8 +10,9 @@ import type { ComponentType, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   bookingResult, fieldFlowReducer, initialFlowState,
-  type EditableField, type ServiceRequest,
+  type EditableField, type RequestLocation, type ServiceRequest,
 } from "@/lib/flow";
+import { requestBrowserLocation, resolveLocationName } from "@/lib/location";
 import { getMicrophoneErrorMessage, mergeSpeechTranscript } from "@/lib/speech";
 
 type VoiceState = "idle" | "connecting" | "recording" | "finishing";
@@ -49,7 +50,7 @@ const fieldMeta: Record<
 };
 
 const activitySteps = [
-  { label: "Pesquisando nas proximidades", detail: "Pinheiros", time: "09:42" },
+  { label: "Pesquisando nas proximidades", detail: "", time: "09:42" },
   { label: "14 profissionais encontrados", detail: "abertos agora", time: "09:42" },
   { label: "3 candidatos selecionados", detail: "melhor compatibilidade", time: "09:43" },
   { label: "Profissionais contatados", detail: "3 mensagens enviadas", time: "09:43" },
@@ -103,21 +104,23 @@ function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => voi
   );
 }
 
-function ChatHeader({ stage, onOpenMenu, onReset }: { stage: string; onOpenMenu: () => void; onReset: () => void }) {
+function ChatHeader({ stage, title, onOpenMenu, onReset }: { stage: string; title: string; onOpenMenu: () => void; onReset: () => void }) {
   const status = stage === "work" ? "Executando" : stage === "result" ? "Concluído" : "Online";
   return (
     <header className="chat-header">
       <div className="chat-header-left">
         <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
-        <div className="chat-title"><strong>{stage === "start" ? "ServeAI" : "Chaveiro em Pinheiros"}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
+        <div className="chat-title"><strong>{title}</strong><span className={`chat-status is-${stage}`}><i />{status}</span></div>
       </div>
       <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Novo chat</span></button>
     </header>
   );
 }
 
-function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, quiet = false }: {
+function Composer({ value, onChange, onSubmit, onLocation, placeholder, autoFocus = false, autoRequestLocation = false, quiet = false }: {
   value: string; onChange: (value: string) => void; onSubmit: () => void; placeholder: string; autoFocus?: boolean; quiet?: boolean;
+  onLocation?: (location: RequestLocation) => void;
+  autoRequestLocation?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mainRecorderRef = useRef<MediaRecorder | null>(null);
@@ -136,9 +139,13 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
   const previewIndexRef = useRef(0);
   const sessionRef = useRef(0);
   const activeRef = useRef(false);
+  const autoLocationRequestedRef = useRef(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceError, setVoiceError] = useState("");
   const [supportsVoice, setSupportsVoice] = useState(true);
+  const [locationState, setLocationState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [locationError, setLocationError] = useState("");
+  const [locationLabel, setLocationLabel] = useState("");
 
   const resize = () => {
     const textarea = textareaRef.current;
@@ -363,6 +370,27 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
     if (voiceState === "idle") void startVoice();
   };
 
+  const useCurrentLocation = async () => {
+    setLocationState("loading");
+    setLocationError("");
+    try {
+      const coordinates = await requestBrowserLocation(navigator.geolocation);
+      const location = await resolveLocationName(coordinates).catch(() => coordinates);
+      onLocation?.(location);
+      setLocationLabel(location.label);
+      setLocationState("success");
+    } catch (error) {
+      setLocationError(error instanceof Error ? error.message : "Não foi possível acessar sua localização.");
+      setLocationState("error");
+    }
+  };
+
+  useEffect(() => {
+    if (!autoRequestLocation || autoLocationRequestedRef.current) return;
+    autoLocationRequestedRef.current = true;
+    void useCurrentLocation();
+  }, [autoRequestLocation]);
+
   const voiceFeedback = voiceError
     || (voiceState === "connecting" && "Conectando ao microfone…")
     || (voiceState === "recording" && "Ouvindo e transcrevendo… paro quando você terminar de falar.")
@@ -372,10 +400,22 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
     <form className={`composer ${quiet ? "is-quiet" : ""} ${voiceState !== "idle" ? "is-listening" : ""}`} onSubmit={handleSubmit}>
       <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => { setVoiceError(""); onChange(event.target.value); }} onInput={resize} onKeyDown={handleKeyDown} placeholder={voiceState === "recording" ? "Pode falar…" : placeholder} aria-label={placeholder} autoFocus={autoFocus} disabled={voiceState !== "idle"} />
       {voiceFeedback && <p className={`voice-feedback ${voiceError ? "is-error" : ""}`} role={voiceError ? "alert" : "status"}>{voiceFeedback}</p>}
+      {locationError && <p className="location-feedback is-error" role="alert">{locationError}</p>}
+      {locationState === "success" && <p className="location-attribution">Localização aproximada · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></p>}
       <div className="composer-toolbar">
         <div className="composer-tools">
           <button className="composer-icon pressable" type="button" aria-label="Anexar arquivo"><Paperclip size={18} strokeWidth={1.7} /></button>
-          <button className="location-pill pressable" type="button" aria-label="Usar localização"><LocateFixed size={15} strokeWidth={1.8} /><span>Localização</span></button>
+          <button
+            className={`location-pill pressable is-${locationState}`}
+            type="button"
+            aria-label={locationState === "success" ? `Localização usada: ${locationLabel}` : "Usar localização atual"}
+            aria-pressed={locationState === "success"}
+            onClick={() => void useCurrentLocation()}
+            disabled={locationState === "loading"}
+          >
+            {locationState === "success" ? <Check size={15} strokeWidth={2} /> : <LocateFixed size={15} strokeWidth={1.8} />}
+            <span>{locationState === "loading" ? "Obtendo…" : locationState === "success" ? locationLabel : "Localização"}</span>
+          </button>
         </div>
         <div className="composer-actions">
           <button className="composer-icon voice-button pressable" type="button" aria-label={voiceState === "recording" ? "Parar gravação" : "Usar microfone"} aria-pressed={voiceState !== "idle"} onClick={toggleVoice} disabled={voiceState === "connecting" || voiceState === "finishing"}><span className="voice-pulse" aria-hidden="true" /><Mic size={18} strokeWidth={1.7} /></button>
@@ -390,19 +430,20 @@ function ComposerDock({ children }: { children: ReactNode }) {
   return <div className="composer-dock">{children}<p>O ServeAI pode cometer erros. Confirme informações importantes.</p></div>;
 }
 
-function StartScreen({ onStart }: { onStart: (message: string) => void }) {
+function StartScreen({ onStart }: { onStart: (message: string, location?: RequestLocation) => void }) {
   const [message, setMessage] = useState("");
-  const submit = () => message.trim() && onStart(message);
+  const [location, setLocation] = useState<RequestLocation>();
+  const submit = () => message.trim() && onStart(message, location);
   return (
     <section className="start-screen stage-panel" aria-labelledby="start-title">
       <div className="start-content">
         <div className="start-brand"><BrandMark /></div>
         <h1 id="start-title">O que vamos resolver hoje?</h1>
         <p>Descreva o que você precisa. Eu encontro, comparo e agendo o melhor profissional para você.</p>
-        <div className="start-composer"><Composer value={message} onChange={setMessage} onSubmit={submit} placeholder="Peça qualquer serviço local" autoFocus /></div>
+        <div className="start-composer"><Composer value={message} onChange={setMessage} onSubmit={submit} onLocation={setLocation} placeholder="Peça qualquer serviço local" autoFocus autoRequestLocation /></div>
         <div className="suggestion-grid" aria-label="Sugestões">
           {starterSuggestions.map(({ label, hint, icon: Icon }) => (
-            <button className="suggestion-card pressable" type="button" key={label} onClick={() => onStart(label)}>
+            <button className="suggestion-card pressable" type="button" key={label} onClick={() => onStart(label, location)}>
               <span className="suggestion-icon"><Icon size={17} strokeWidth={1.7} /></span>
               <span className="suggestion-copy"><strong>{label}</strong><small>{hint}</small></span>
               <ArrowUp className="suggestion-arrow" size={15} strokeWidth={1.8} />
@@ -467,10 +508,10 @@ function OptionChips({ options, onSelect }: { options: string[]; onSelect: (valu
   return <div className="option-chips">{options.map((option) => <button className="option-chip pressable" type="button" onClick={() => onSelect(option)} key={option}>{option}</button>)}</div>;
 }
 
-function CollectScreen({ originalRequest, request, onUpdate, onBegin }: { originalRequest: string; request: ServiceRequest; onUpdate: (field: EditableField, value: string) => void; onBegin: () => void }) {
+function CollectScreen({ originalRequest, request, onUpdate, onUpdateLocation, onBegin }: { originalRequest: string; request: ServiceRequest; onUpdate: (field: EditableField, value: string) => void; onUpdateLocation: (location: RequestLocation) => void; onBegin: () => void }) {
   const [reply, setReply] = useState("");
-  const question = !request.problem ? "problem" : !request.budget ? "budget" : "ready";
-  const answer = (value: string) => { if (question === "problem") onUpdate("problem", value); if (question === "budget") onUpdate("budget", value); setReply(""); };
+  const question = !request.location ? "location" : !request.problem ? "problem" : !request.budget ? "budget" : "ready";
+  const answer = (value: string) => { if (question === "location") onUpdate("location", value); if (question === "problem") onUpdate("problem", value); if (question === "budget") onUpdate("budget", value); setReply(""); };
   const submitReply = () => reply.trim() && question !== "ready" && answer(reply);
   return (
     <section className="conversation-screen stage-panel" aria-label="Conversa">
@@ -482,6 +523,7 @@ function CollectScreen({ originalRequest, request, onUpdate, onBegin }: { origin
           <RequestSummary request={request} onUpdate={onUpdate} />
         </AgentMessage>
         {request.problem && <UserMessage>{request.problem}</UserMessage>}
+        {question === "location" && <AgentMessage><p>Onde você está?</p><p className="muted-copy">Use o botão de localização abaixo ou digite seu endereço, bairro ou CEP.</p></AgentMessage>}
         {question === "problem" && <AgentMessage><p>O que aconteceu com a fechadura?</p><p className="muted-copy">Isso me ajuda a encontrar o profissional certo.</p><OptionChips options={problemOptions} onSelect={answer} /></AgentMessage>}
         {question === "budget" && <AgentMessage><p>Perfeito. Quanto você gostaria de gastar?</p><OptionChips options={budgetOptions} onSelect={answer} /></AgentMessage>}
         {request.budget && <UserMessage>{request.budget}</UserMessage>}
@@ -499,7 +541,7 @@ function CollectScreen({ originalRequest, request, onUpdate, onBegin }: { origin
           </AgentMessage>
         )}
       </div>
-      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} placeholder="Responda ao ServeAI" quiet /></ComposerDock>}
+      {question !== "ready" && <ComposerDock><Composer value={reply} onChange={setReply} onSubmit={submitReply} onLocation={onUpdateLocation} placeholder={question === "location" ? "Digite seu endereço, bairro ou CEP" : "Responda ao ServeAI"} quiet /></ComposerDock>}
     </section>
   );
 }
@@ -523,7 +565,8 @@ function WorkScreen({ originalRequest, request, phase, onAdjust }: { originalReq
             <div className="activity-heading"><span className="work-icon"><Search size={17} strokeWidth={1.8} /></span><div><strong>Buscando profissionais</strong><small>Execução em tempo real</small></div><span className="live-pill"><i />AO VIVO</span></div>
             <div className="activity-list">{activitySteps.map((step, index) => {
               const status = index < phase ? "done" : index === phase ? "active" : "pending";
-              return <div className={`activity-row is-${status}`} key={step.label}><span className="activity-status"><ActivityIcon status={status} /></span><div className="activity-copy"><span>{step.label}</span>{step.detail && <small>{step.detail}</small>}</div><time>{status === "done" ? step.time : ""}</time></div>;
+              const detail = index === 0 ? (request.latitude !== null ? "na sua localização GPS" : request.location) : step.detail;
+              return <div className={`activity-row is-${status}`} key={step.label}><span className="activity-status"><ActivityIcon status={status} /></span><div className="activity-copy"><span>{step.label}</span>{detail && <small>{detail}</small>}</div><time>{status === "done" ? step.time : ""}</time></div>;
             })}</div>
             <div className="activity-footer"><span>Você pode sair — eu aviso quando concluir.</span><button type="button" onClick={onAdjust}>Ajustar pedido</button></div>
           </div>
@@ -545,7 +588,7 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
           <p className="muted-copy">O profissional confirmou o serviço dentro do seu orçamento e horário.</p>
           <article className="booking-card">
             <div className="provider-heading"><span className="provider-icon"><KeyRound size={21} strokeWidth={1.8} /></span><div className="provider-copy"><div className="provider-name-line"><h2>{bookingResult.provider}</h2><span className="verified-badge"><Check size={10} strokeWidth={2.5} /></span></div><p><Star size={13} fill="currentColor" />{bookingResult.rating} <span>({bookingResult.reviewCount} avaliações) · {bookingResult.distance}</span></p></div><span className="confirmed-pill"><Check size={12} />Confirmado</span></div>
-            <div className="booking-numbers"><div><span>PREÇO</span><strong>{bookingResult.price}</strong></div><div><span>CHEGADA</span><strong>{bookingResult.arrival}</strong></div><div><span>LOCAL</span><strong>Pinheiros</strong></div></div>
+            <div className="booking-numbers"><div><span>PREÇO</span><strong>{bookingResult.price}</strong></div><div><span>CHEGADA</span><strong>{bookingResult.arrival}</strong></div><div><span>LOCAL</span><strong>{request.latitude !== null ? "Localização GPS" : request.location}</strong></div></div>
             <div className="compatibility-list"><span><Check size={14} />Dentro do seu orçamento</span><span><Check size={14} />Disponível hoje</span><span><Check size={14} />Prestador verificado</span></div>
             <button className="booking-action pressable" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}><span><CalendarDays size={16} />Ver compromisso</span><ChevronDown className={detailsOpen ? "is-rotated" : ""} size={17} /></button>
             {detailsOpen && <div className="appointment-details"><span><CalendarDays size={16} /><span><small>DATA E HORÁRIO</small>Hoje · 15:30–16:30</span></span><span><MapPin size={16} /><span><small>LOCAL</small>{request.location}</span></span></div>}
@@ -575,17 +618,24 @@ export function ServeAIApp() {
   }, [state.stage]);
 
   const stageLabel = useMemo(() => ({ start: "Início", collect: "Coleta", work: "Execução", result: "Resultado" })[state.stage], [state.stage]);
+  const chatTitle = state.stage === "start"
+    ? "ServeAI"
+    : state.request.latitude !== null
+      ? "Chaveiro perto de você"
+      : state.request.location
+        ? `Chaveiro em ${state.request.location}`
+        : "Solicitação de chaveiro";
   const reset = () => { dispatch({ type: "RESET" }); setSidebarOpen(false); };
 
   return (
     <div className="serveai-app">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onReset={reset} />
       <div className="chat-shell">
-        <ChatHeader stage={state.stage} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
+        <ChatHeader stage={state.stage} title={chatTitle} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
         <main className="app-main">
           <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
-          {state.stage === "start" && <StartScreen onStart={(message) => dispatch({ type: "START_REQUEST", message })} />}
-          {state.stage === "collect" && <CollectScreen originalRequest={state.originalRequest} request={state.request} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} />}
+          {state.stage === "start" && <StartScreen onStart={(message, location) => dispatch({ type: "START_REQUEST", message, location })} />}
+          {state.stage === "collect" && <CollectScreen originalRequest={state.originalRequest} request={state.request} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onUpdateLocation={(location) => dispatch({ type: "UPDATE_LOCATION", location })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} />}
           {state.stage === "work" && <WorkScreen originalRequest={state.originalRequest} request={state.request} phase={activityPhase} onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })} />}
           {state.stage === "result" && <ResultScreen originalRequest={state.originalRequest} request={state.request} onReset={reset} />}
         </main>

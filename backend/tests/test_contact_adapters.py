@@ -16,7 +16,11 @@ from app.domain.models import (
     ProviderCandidate,
     ServiceRequestData,
 )
-from app.infrastructure.contact.adapters import InvalidWebhookError, ResendEmailChannel
+from app.infrastructure.contact.adapters import (
+    ContactDeliveryError,
+    InvalidWebhookError,
+    ResendEmailChannel,
+)
 
 CONVERSATION_ID = UUID("99b6f159-3e3d-4de5-a354-b1715bb2473b")
 PROVIDER_ID = UUID("836b69fc-41b6-4718-8e85-bd639e0778c3")
@@ -152,3 +156,36 @@ async def test_resend_inbound_html_is_converted_to_readable_text() -> None:
         text = await channel.fetch_inbound_text("inbound/with spaces")
 
     assert text == "Consigo às\n15:30\n.\nFica R$ 180."
+
+
+@pytest.mark.asyncio
+async def test_resend_inbound_drops_quoted_thread_and_rejects_oversized_response() -> None:
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "text": (
+                        "Consigo hoje às 15h por R$ 180.\n\n"
+                        "Em quarta-feira, ServeAI escreveu:\n" + "conteúdo citado" * 500
+                    )
+                },
+            )
+        return httpx.Response(200, content=b"{" + b"x" * 600_000 + b"}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        channel = ResendEmailChannel(
+            api_key="re_test",
+            webhook_secret=WEBHOOK_SECRET,
+            inbound_domain="inbound.serveai.example",
+            client=client,
+        )
+        text = await channel.fetch_inbound_text("small-reply")
+        with pytest.raises(ContactDeliveryError, match="too large"):
+            await channel.fetch_inbound_text("oversized-reply")
+
+    assert text == "Consigo hoje às 15h por R$ 180."

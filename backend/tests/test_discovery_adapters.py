@@ -24,6 +24,10 @@ class StubContactResolver:
         return "publico@chaveiro.example" if website else None
 
 
+async def public_dns(_: str) -> list[str]:
+    return ["8.8.8.8"]
+
+
 @pytest.mark.asyncio
 async def test_google_places_filters_ranks_normalizes_and_resolves_contact() -> None:
     captured_payloads: list[dict[str, object]] = []
@@ -124,10 +128,31 @@ async def test_website_resolver_checks_only_home_and_same_host_contact_page() ->
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        resolver = WebsiteContactResolver(http_client=client)
+        resolver = WebsiteContactResolver(http_client=client, dns_resolver=public_dns)
         email = await resolver.resolve("https://chaveiro.example")
         private_email = await resolver.resolve("http://127.0.0.1/admin")
 
     assert email == "orcamento@chaveiro.example"
     assert private_email is None
     assert requested_paths == ["/", "/contato"]
+
+
+@pytest.mark.asyncio
+async def test_website_resolver_rejects_private_dns_and_nonstandard_ports() -> None:
+    requested_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_urls.append(str(request.url))
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="ok")
+
+    async def private_dns(_: str) -> list[str]:
+        return ["127.0.0.1"]
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        resolver = WebsiteContactResolver(http_client=client, dns_resolver=private_dns)
+        rebound = await resolver.resolve("http://127.0.0.1.nip.io/secret")
+        unusual_port = await resolver.resolve("https://example.com:8443/secret")
+
+    assert rebound is None
+    assert unusual_port is None
+    assert requested_urls == []

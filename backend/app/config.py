@@ -72,11 +72,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SUPABASE_URL e SUPABASE_SECRET_KEY são obrigatórios em produção ou na Vercel"
             )
-        if self.app_env == "production" and self.demo_auto_reply:
+        live_runtime = self.is_live_runtime
+        if live_runtime and self.demo_auto_reply:
             raise ValueError("DEMO_AUTO_REPLY deve permanecer desativado em produção")
-        if self.app_env == "production" and "*" in self.frontend_origins:
+        if live_runtime and "*" in self.frontend_origins:
             raise ValueError("FRONTEND_ORIGINS não pode aceitar '*' em produção")
-        live_runtime = self.app_env == "production" or self.vercel_env == "production"
         if live_runtime:
             missing_integrations = [
                 name
@@ -92,6 +92,7 @@ class Settings(BaseSettings):
                         "GOOGLE_REFRESH_TOKEN/GOOGLE_CALENDAR_ID",
                         self.has_google_calendar,
                     ),
+                    ("DEMO_CONTACT_OVERRIDE", bool(self.demo_contact_override)),
                 )
                 if not configured
             ]
@@ -101,6 +102,10 @@ class Settings(BaseSettings):
                     + ", ".join(missing_integrations)
                 )
         return self
+
+    @property
+    def is_live_runtime(self) -> bool:
+        return self.app_env == "production" or self.vercel_env == "production"
 
     @property
     def has_supabase(self) -> bool:

@@ -79,6 +79,7 @@ class ConversationOrchestrator:
         async with self._create_lock:
             existing = await self._repository.find_by_client_message_id(client_message_id)
             if existing is not None:
+                existing = await self._resume_with_retries(existing)
                 return present_conversation(existing)
 
             now = self.now()
@@ -96,9 +97,10 @@ class ConversationOrchestrator:
             except ConcurrentConversationWriteError:
                 existing = await self._repository.find_by_client_message_id(client_message_id)
                 if existing is not None:
+                    existing = await self._resume_with_retries(existing)
                     return present_conversation(existing)
                 raise
-            await self._process_user_input(aggregate)
+            aggregate = await self._resume_with_retries(aggregate)
             return present_conversation(aggregate)
 
     async def add_message(
@@ -111,6 +113,7 @@ class ConversationOrchestrator:
         async with self._conversation_locks[conversation_id]:
             aggregate = await self._repository.get(conversation_id)
             if client_message_id in aggregate.processed_client_message_ids:
+                aggregate = await self._resume_with_retries(aggregate)
                 return present_conversation(aggregate)
             if aggregate.status not in {
                 RequestStatus.COLLECTING_REQUIREMENTS,
@@ -133,15 +136,16 @@ class ConversationOrchestrator:
             except ConcurrentConversationWriteError:
                 latest = await self._repository.get(conversation_id)
                 if client_message_id in latest.processed_client_message_ids:
+                    latest = await self._resume_with_retries(latest)
                     return present_conversation(latest)
                 raise
-            await self._process_user_input(aggregate)
+            aggregate = await self._resume_with_retries(aggregate)
             return present_conversation(aggregate)
 
     async def get_conversation(self, conversation_id: UUID) -> ChatConversation:
         async with self._conversation_locks[conversation_id]:
             aggregate = await self._repository.get(conversation_id)
-            await self._maybe_advance_demo(aggregate)
+            aggregate = await self._resume_with_retries(aggregate)
             return present_conversation(aggregate)
 
     def verify_resend_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, object]:
@@ -178,6 +182,7 @@ class ConversationOrchestrator:
         async with self._conversation_locks[aggregate.id]:
             aggregate = await self._repository.get(aggregate.id)
             if email_id in aggregate.processed_inbound_message_ids:
+                await self._resume_with_retries(aggregate)
                 return True
             text = await self._contact_channel.fetch_inbound_text(email_id)
             try:
@@ -191,13 +196,96 @@ class ConversationOrchestrator:
                 latest = await self._repository.get(aggregate.id)
                 if email_id not in latest.processed_inbound_message_ids:
                     raise
+                await self._resume_with_retries(latest)
         return True
+
+    async def _resume_with_retries(
+        self,
+        aggregate: ConversationAggregate,
+        *,
+        attempts: int = 3,
+    ) -> ConversationAggregate:
+        """Resume persisted automatic work after retries, crashes or worker races."""
+
+        for attempt in range(attempts):
+            try:
+                await self._resume_pending_work(aggregate)
+                return aggregate
+            except ConcurrentConversationWriteError:
+                if attempt + 1 == attempts:
+                    raise
+                aggregate = await self._repository.get(aggregate.id)
+        return aggregate
+
+    async def _resume_pending_work(self, aggregate: ConversationAggregate) -> None:
+        if aggregate.booking is not None or aggregate.status == RequestStatus.BOOKED:
+            return
+
+        last_message = aggregate.messages[-1] if aggregate.messages else None
+        if (
+            aggregate.status
+            in {
+                RequestStatus.COLLECTING_REQUIREMENTS,
+                RequestStatus.NEEDS_USER_INPUT,
+                RequestStatus.FAILED,
+            }
+            and last_message is not None
+            and last_message.role == "user"
+        ):
+            await self._process_user_input(aggregate)
+            return
+
+        if aggregate.status in {
+            RequestStatus.READY,
+            RequestStatus.SEARCHING,
+            RequestStatus.PROVIDERS_FOUND,
+            RequestStatus.CONTACTING,
+        }:
+            try:
+                await self._discover_and_contact(aggregate)
+            except ConcurrentConversationWriteError:
+                raise
+            except Exception:
+                await self._fail(
+                    aggregate,
+                    code="automation_failed",
+                    message=(
+                        "Tive um problema ao executar esta etapa. Você pode tentar novamente sem "
+                        "perder o que já informou."
+                    ),
+                )
+            return
+
+        if aggregate.status == RequestStatus.ACCEPTED and aggregate.pending_offer_id is not None:
+            offer = next(
+                (item for item in aggregate.offers if item.id == aggregate.pending_offer_id),
+                None,
+            )
+            if offer is None:
+                await self._fail(
+                    aggregate,
+                    code="booking_offer_missing",
+                    message="A oferta selecionada não está mais disponível. Tente novamente.",
+                )
+                return
+            await self._book_offer(aggregate, offer)
+            return
+
+        await self._maybe_advance_demo(aggregate)
 
     async def _process_user_input(self, aggregate: ConversationAggregate) -> None:
         now = self.now()
         try:
             if aggregate.status == RequestStatus.FAILED and aggregate.pending_offer_id is None:
-                transition(aggregate, RequestStatus.COLLECTING_REQUIREMENTS, now)
+                transition(
+                    aggregate,
+                    (
+                        RequestStatus.NEEDS_USER_INPUT
+                        if aggregate.offers
+                        else RequestStatus.COLLECTING_REQUIREMENTS
+                    ),
+                    now,
+                )
 
             aggregate.request = await self._requirements_extractor.extract(
                 aggregate.request,
@@ -237,6 +325,51 @@ class ConversationOrchestrator:
                     await self._repository.save(aggregate)
                     return
 
+            if aggregate.offers and aggregate.status == RequestStatus.NEEDS_USER_INPUT:
+                compatible_offer = self._reevaluate_existing_offers(aggregate)
+                if compatible_offer is not None:
+                    aggregate.pending_offer_id = compatible_offer.id
+                    if aggregate.request.exact_address:
+                        transition(aggregate, RequestStatus.ACCEPTED, now)
+                        await self._repository.save(aggregate)
+                        await self._book_offer(aggregate, compatible_offer)
+                        return
+
+                    provider = next(
+                        (
+                            candidate
+                            for candidate in aggregate.providers
+                            if candidate.id == compatible_offer.provider_id
+                        ),
+                        None,
+                    )
+                    aggregate.add_message(
+                        role="assistant",
+                        content=(
+                            f"{provider.name if provider else 'Um prestador'} agora atende aos "
+                            "critérios. Para reservar, qual é o endereço completo, com número e "
+                            "complemento?"
+                        ),
+                        now=now,
+                    )
+                    await self._repository.save(aggregate)
+                    return
+
+                replied_provider_ids = {offer.provider_id for offer in aggregate.offers}
+                contacted_provider_ids = {outreach.provider_id for outreach in aggregate.outreaches}
+                if contacted_provider_ids and contacted_provider_ids <= replied_provider_ids:
+                    aggregate.add_message(
+                        role="assistant",
+                        content=(
+                            "As respostas atuais ainda não atendem simultaneamente ao orçamento e "
+                            "ao horário. Ajuste novamente um desses critérios ou inicie uma nova "
+                            "solicitação para fazer outra busca."
+                        ),
+                        now=now,
+                    )
+                    await self._repository.save(aggregate)
+                    return
+
             if aggregate.status == RequestStatus.FAILED:
                 transition(aggregate, RequestStatus.COLLECTING_REQUIREMENTS, now)
 
@@ -270,60 +403,92 @@ class ConversationOrchestrator:
                 ),
             )
 
+    @staticmethod
+    def _reevaluate_existing_offers(
+        aggregate: ConversationAggregate,
+    ) -> ProviderOffer | None:
+        compatible: list[ProviderOffer] = []
+        for offer in aggregate.offers:
+            evaluation = evaluate_offer(aggregate.request, offer)
+            offer.within_budget = evaluation.within_budget
+            offer.within_availability = evaluation.within_availability
+            offer.acceptable = offer.status == OfferStatus.AVAILABLE and evaluation.acceptable
+            if offer.acceptable:
+                compatible.append(offer)
+        if not compatible:
+            return None
+        return min(
+            compatible,
+            key=lambda offer: (
+                offer.price if offer.price is not None else float("inf"),
+                offer.available_at.timestamp() if offer.available_at is not None else float("inf"),
+                str(offer.id),
+            ),
+        )
+
     async def _discover_and_contact(self, aggregate: ConversationAggregate) -> None:
-        now = self.now()
-        transition(aggregate, RequestStatus.SEARCHING, now)
-        aggregate.add_event(
-            "operation",
-            {
-                "status": RequestStatus.SEARCHING.value,
-                "title": f"Procurando {aggregate.request.service_type or 'prestadores'}",
-                "detail": (
-                    aggregate.request.location.search_text if aggregate.request.location else None
-                ),
-            },
-            now,
-        )
-        await self._repository.save(aggregate)
+        if aggregate.status == RequestStatus.READY:
+            now = self.now()
+            transition(aggregate, RequestStatus.SEARCHING, now)
+            aggregate.add_event(
+                "operation",
+                {
+                    "status": RequestStatus.SEARCHING.value,
+                    "title": f"Procurando {aggregate.request.service_type or 'prestadores'}",
+                    "detail": (
+                        aggregate.request.location.search_text
+                        if aggregate.request.location
+                        else None
+                    ),
+                },
+                now,
+            )
+            await self._repository.save(aggregate)
 
-        discovered = await self._provider_discovery.search(
-            aggregate.id, aggregate.request, limit=10
-        )
-        eligible = [
-            provider
-            for provider in discovered
-            if (provider.business_status or "OPERATIONAL").upper() == "OPERATIONAL"
-        ]
-        eligible.sort(
-            key=lambda provider: (provider.rating or 0, provider.review_count or 0), reverse=True
-        )
-        aggregate.providers = eligible[:3]
-        for index, provider in enumerate(aggregate.providers, start=1):
-            provider.rank = index
-        if not aggregate.providers:
-            raise RuntimeError("Nenhum prestador disponível")
+        if aggregate.status == RequestStatus.SEARCHING:
+            discovered = await self._provider_discovery.search(
+                aggregate.id, aggregate.request, limit=10
+            )
+            eligible = [
+                provider
+                for provider in discovered
+                if (provider.business_status or "OPERATIONAL").upper() == "OPERATIONAL"
+            ]
+            eligible.sort(
+                key=lambda provider: (provider.rating or 0, provider.review_count or 0),
+                reverse=True,
+            )
+            aggregate.providers = eligible[:3]
+            for index, provider in enumerate(aggregate.providers, start=1):
+                provider.rank = index
+            if not aggregate.providers:
+                raise RuntimeError("Nenhum prestador disponível")
 
-        now = self.now()
-        transition(aggregate, RequestStatus.PROVIDERS_FOUND, now)
-        aggregate.add_event(
-            "providers",
-            {"providerIds": [str(provider.id) for provider in aggregate.providers]},
-            now,
-        )
-        await self._repository.save(aggregate)
+            now = self.now()
+            transition(aggregate, RequestStatus.PROVIDERS_FOUND, now)
+            aggregate.add_event(
+                "providers",
+                {"providerIds": [str(provider.id) for provider in aggregate.providers]},
+                now,
+            )
+            await self._repository.save(aggregate)
 
-        now = self.now()
-        transition(aggregate, RequestStatus.CONTACTING, now)
-        aggregate.add_event(
-            "operation",
-            {
-                "status": RequestStatus.CONTACTING.value,
-                "title": "Contatando prestadores",
-                "detail": f"Enviando {len(aggregate.providers)} solicitações em paralelo",
-            },
-            now,
-        )
-        await self._repository.save(aggregate)
+        if aggregate.status == RequestStatus.PROVIDERS_FOUND:
+            now = self.now()
+            transition(aggregate, RequestStatus.CONTACTING, now)
+            aggregate.add_event(
+                "operation",
+                {
+                    "status": RequestStatus.CONTACTING.value,
+                    "title": "Contatando prestadores",
+                    "detail": f"Enviando {len(aggregate.providers)} solicitações em paralelo",
+                },
+                now,
+            )
+            await self._repository.save(aggregate)
+
+        if aggregate.status != RequestStatus.CONTACTING:
+            return
 
         selected_provider_ids = {provider.id for provider in aggregate.providers}
         existing_outreach_provider_ids = {

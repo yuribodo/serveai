@@ -117,6 +117,50 @@ def test_compatible_offer_requests_exact_address_before_booking(client: TestClie
     assert [item["type"] for item in booked["timeline"]].count("booking") == 1
 
 
+def test_adjusted_budget_reevaluates_existing_offers_without_getting_stuck(
+    client: TestClient,
+) -> None:
+    initial = client.post(
+        "/api/v1/conversations",
+        json={
+            "message": (
+                "Preciso de um chaveiro porque perdi a chave na Rua dos Pinheiros, 100, "
+                "Pinheiros, São Paulo. Até R$ 100. Hoje das 14h às 18h."
+            ),
+            "clientMessageId": "adjust-budget-initial",
+        },
+    ).json()
+    providers = next(item for item in initial["timeline"] if item["type"] == "providers")
+
+    for index, provider in enumerate(providers["providers"], start=1):
+        response = client.post(
+            "/api/v1/webhooks/resend",
+            json={
+                "type": "email.received",
+                "data": {
+                    "email_id": f"over-budget-{index}",
+                    "to": [f"offer+{provider['id'].replace('-', '')}@inbound.serveai.local"],
+                    "text": f"Consigo hoje às 15h por R$ {170 + index * 10}.",
+                },
+            },
+        )
+        assert response.status_code == 200
+
+    needs_adjustment = client.get(f"/api/v1/conversations/{initial['conversationId']}").json()
+    assert needs_adjustment["status"] == "needs_user_input"
+
+    booked = client.post(
+        f"/api/v1/conversations/{initial['conversationId']}/messages",
+        json={
+            "message": "Posso pagar até R$ 200.",
+            "clientMessageId": "adjust-budget-answer",
+        },
+    ).json()
+
+    assert booked["status"] == "booked"
+    assert [item["type"] for item in booked["timeline"]].count("booking") == 1
+
+
 @pytest.mark.asyncio
 async def test_failed_calendar_booking_retries_the_accepted_offer() -> None:
     repository = InMemoryConversationRepository()

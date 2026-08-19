@@ -62,3 +62,37 @@ def test_production_requires_every_live_integration() -> None:
             supabase_url="https://example.supabase.co",
             supabase_secret_key="service-role-key",
         )
+
+
+def test_vercel_production_applies_demo_and_cors_protections() -> None:
+    base = {
+        "_env_file": None,
+        "vercel_env": "production",
+        "repository_backend": "supabase",
+        "supabase_url": "https://example.supabase.co",
+        "supabase_secret_key": "service-role-key",
+    }
+    with pytest.raises(ValidationError, match="DEMO_AUTO_REPLY"):
+        Settings(**base, demo_auto_reply=True)
+    with pytest.raises(ValidationError, match="FRONTEND_ORIGINS"):
+        Settings(**base, frontend_origins=["*"])
+
+
+def test_live_runtime_requires_controlled_contact_override() -> None:
+    with pytest.raises(ValidationError, match="DEMO_CONTACT_OVERRIDE"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            repository_backend="supabase",
+            supabase_url="https://example.supabase.co",
+            supabase_secret_key="service-role-key",
+            openai_api_key="openai-key",
+            google_places_api_key="places-key",
+            resend_api_key="resend-key",
+            resend_webhook_secret="whsec_test",
+            resend_inbound_domain="inbound.example.com",
+            google_client_id="client-id",
+            google_client_secret="client-secret",
+            google_refresh_token="refresh-token",
+            google_calendar_id="calendar-id",
+        )

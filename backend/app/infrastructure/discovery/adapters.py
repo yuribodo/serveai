@@ -7,7 +7,8 @@ import ipaddress
 import logging
 import math
 import re
-from collections.abc import Mapping
+import socket
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Final, Protocol
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 from uuid import UUID, uuid5
@@ -238,6 +239,7 @@ class WebsiteContactResolver:
         timeout_seconds: float = 6.0,
         http_client: httpx.AsyncClient | None = None,
         max_response_bytes: int = 256_000,
+        dns_resolver: Callable[[str], Awaitable[Sequence[str]]] | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -246,6 +248,7 @@ class WebsiteContactResolver:
         self._timeout = httpx.Timeout(timeout_seconds)
         self._client = http_client
         self._max_response_bytes = max_response_bytes
+        self._dns_resolver = dns_resolver or _resolve_host_addresses
 
     async def resolve(self, website: str | None) -> str | None:
         root = _normalize_public_url(website)
@@ -267,33 +270,48 @@ class WebsiteContactResolver:
         return _first_mailto(contact_html) if contact_html else None
 
     async def _fetch_html(self, url: str) -> str | None:
+        host = urlsplit(url).hostname
+        if host is None or not await _host_resolves_public(host, self._dns_resolver):
+            return None
         headers = {
             "Accept": "text/html,application/xhtml+xml",
             "User-Agent": "ServeAI/0.1 (+public-contact-discovery)",
         }
         try:
             if self._client is not None:
-                response = await self._client.get(
-                    url,
-                    headers=headers,
-                    timeout=self._timeout,
-                    follow_redirects=False,
-                )
+                return await self._stream_html(self._client, url, headers)
             else:
                 async with httpx.AsyncClient(
                     timeout=self._timeout,
                     follow_redirects=False,
                 ) as client:
-                    response = await client.get(url, headers=headers)
+                    return await self._stream_html(client, url, headers)
         except httpx.HTTPError:
             return None
 
-        content_type = response.headers.get("content-type", "").casefold()
-        if response.is_error or response.is_redirect or "html" not in content_type:
-            return None
-        if len(response.content) > self._max_response_bytes:
-            return None
-        return response.text
+    async def _stream_html(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: dict[str, str],
+    ) -> str | None:
+        async with client.stream(
+            "GET",
+            url,
+            headers=headers,
+            timeout=self._timeout,
+            follow_redirects=False,
+        ) as response:
+            content_type = response.headers.get("content-type", "").casefold()
+            if response.is_error or response.is_redirect or "html" not in content_type:
+                return None
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > self._max_response_bytes:
+                    return None
+            encoding = response.encoding or "utf-8"
+            return bytes(body).decode(encoding, errors="replace")
 
 
 def _extract_places(response: httpx.Response) -> list[Mapping[str, object]]:
@@ -464,11 +482,16 @@ def _normalize_public_url(value: str | None, *, expected_host: str | None = None
         raw = f"https://{raw}"
     parsed = urlsplit(raw)
     host = parsed.hostname
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
     if (
         parsed.scheme not in {"http", "https"}
         or not host
         or parsed.username
         or parsed.password
+        or port not in {None, 80, 443}
         or (expected_host is not None and host.casefold() != expected_host.casefold())
         or not _is_public_host(host)
     ):
@@ -484,14 +507,36 @@ def _is_public_host(host: str) -> bool:
         address = ipaddress.ip_address(normalized)
     except ValueError:
         return True
-    return not (
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
+    return address.is_global
+
+
+async def _resolve_host_addresses(host: str) -> Sequence[str]:
+    loop = asyncio.get_running_loop()
+    records = await loop.getaddrinfo(
+        host,
+        None,
+        family=socket.AF_UNSPEC,
+        type=socket.SOCK_STREAM,
     )
+    return tuple({str(record[4][0]).split("%", 1)[0] for record in records})
+
+
+async def _host_resolves_public(
+    host: str,
+    resolver: Callable[[str], Awaitable[Sequence[str]]],
+) -> bool:
+    if not _is_public_host(host):
+        return False
+    try:
+        addresses = await resolver(host)
+    except (OSError, ValueError):
+        return False
+    if not addresses:
+        return False
+    try:
+        return all(ipaddress.ip_address(address).is_global for address in addresses)
+    except ValueError:
+        return False
 
 
 __all__ = [

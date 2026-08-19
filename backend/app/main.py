@@ -34,7 +34,7 @@ app = FastAPI(
 )
 
 allowed_origins = list(settings.frontend_origins)
-if settings.app_env != "production":
+if not settings.is_live_runtime:
     allowed_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
 app.add_middleware(
     CORSMiddleware,

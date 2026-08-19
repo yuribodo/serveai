@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.application.presenter import present_conversation
 from app.domain.aggregate import ConversationAggregate
 from app.domain.models import (
     AvailabilityWindow,
@@ -71,3 +72,32 @@ def test_invalid_state_transition_is_rejected() -> None:
 
     with pytest.raises(InvalidStateTransition):
         transition(aggregate, RequestStatus.BOOKED, NOW)
+
+
+@pytest.mark.parametrize(
+    ("request_status", "expected_poll_after_ms"),
+    [
+        (RequestStatus.COLLECTING_REQUIREMENTS, None),
+        (RequestStatus.READY, 2_000),
+        (RequestStatus.SEARCHING, 2_000),
+        (RequestStatus.PROVIDERS_FOUND, 2_000),
+        (RequestStatus.CONTACTING, 2_000),
+        (RequestStatus.WAITING_FOR_REPLIES, 2_000),
+        (RequestStatus.OFFER_RECEIVED, 2_000),
+        (RequestStatus.ACCEPTED, 2_000),
+        (RequestStatus.NEEDS_USER_INPUT, None),
+        (RequestStatus.BOOKED, None),
+        (RequestStatus.FAILED, None),
+    ],
+)
+def test_polling_continues_only_for_automatic_states(
+    request_status: RequestStatus,
+    expected_poll_after_ms: int | None,
+) -> None:
+    aggregate = ConversationAggregate(
+        status=request_status,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+    assert present_conversation(aggregate).poll_after_ms == expected_poll_after_ms

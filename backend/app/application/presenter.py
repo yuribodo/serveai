@@ -127,7 +127,16 @@ def present_conversation(aggregate: ConversationAggregate) -> ChatConversation:
         RequestStatus.NEEDS_USER_INPUT,
         RequestStatus.FAILED,
     }
-    poll_after_ms = 2_000 if aggregate.status == RequestStatus.WAITING_FOR_REPLIES else None
+    automatic_statuses = {
+        RequestStatus.READY,
+        RequestStatus.SEARCHING,
+        RequestStatus.PROVIDERS_FOUND,
+        RequestStatus.CONTACTING,
+        RequestStatus.WAITING_FOR_REPLIES,
+        RequestStatus.OFFER_RECEIVED,
+        RequestStatus.ACCEPTED,
+    }
+    poll_after_ms = 2_000 if aggregate.status in automatic_statuses else None
     return ChatConversation(
         conversation_id=aggregate.id,
         status=aggregate.status,

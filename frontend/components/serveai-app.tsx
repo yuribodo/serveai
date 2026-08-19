@@ -58,10 +58,10 @@ const activitySteps = [
   { label: "Aguardando respostas", detail: "", time: "" },
 ];
 
-function BrandMark() {
+function BrandMark({ wordmark = false }: { wordmark?: boolean }) {
   return (
-    <span className="brand-mark" aria-hidden="true">
-      <img src="/serveai-logo.png" alt="" />
+    <span className={`brand-mark ${wordmark ? "is-wordmark" : ""}`} aria-hidden="true">
+      <img src="/serveai-logo.svg" alt="" />
     </span>
   );
 }
@@ -80,7 +80,7 @@ function Sidebar({ open, view, onClose, onReset, onOpenDashboard, onOpenChat }: 
       <aside className={`sidebar ${open ? "is-open" : ""}`} aria-label="Navegação principal">
         <div className="sidebar-top">
           <button className="sidebar-brand pressable" type="button" onClick={onReset} aria-label="Ir para o início">
-            <BrandMark /><span>ServeAI</span>
+            <BrandMark wordmark />
           </button>
           <button className="icon-button sidebar-close pressable" type="button" onClick={onClose} aria-label="Recolher menu">
             <PanelLeftClose size={18} strokeWidth={1.7} />

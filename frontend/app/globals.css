@@ -84,9 +84,9 @@ textarea { resize: none; }
   cursor: pointer;
 }
 .brand-mark {
-  width: 27px;
+  width: 48px;
   height: 27px;
-  flex: 0 0 27px;
+  flex: 0 0 48px;
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
@@ -98,12 +98,22 @@ textarea { resize: none; }
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
 }
 .brand-mark img {
-  width: 74%;
-  height: 74%;
+  width: 78%;
+  height: auto;
   display: block;
   object-fit: contain;
   filter: invert(1);
 }
+.brand-mark.is-wordmark {
+  width: 70px;
+  height: 28px;
+  flex-basis: 70px;
+  justify-content: start;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.brand-mark.is-wordmark img { width: 70px; filter: none; }
 .icon-button {
   width: 36px;
   height: 36px;
@@ -434,8 +444,8 @@ textarea { resize: none; }
 .progress-card > p i { width: 2px; height: 2px; margin: 0 2px; border-radius: 50%; background: var(--tertiary); }
 .ai-work-surface { position: relative; margin-top: 14px; padding: 11px; overflow: hidden; border: 1px solid #e3e3df; border-radius: 10px; background: #f7f7f5; }
 .ai-work-surface::after { content: ""; position: absolute; z-index: 2; top: 0; bottom: 0; left: -44%; width: 32%; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 80%), transparent); transform: skewX(-12deg); animation: ai-mirror 3.4s var(--ease-in-out) infinite; pointer-events: none; }
-.ai-work-head { position: relative; z-index: 1; display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: center; gap: 8px; }
-.ai-brand .brand-mark { width: 27px; height: 27px; flex-basis: 27px; border-radius: 8px; }
+.ai-work-head { position: relative; z-index: 1; display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 8px; }
+.ai-brand .brand-mark { width: 44px; height: 27px; flex-basis: 44px; border-radius: 8px; }
 .ai-work-head strong, .ai-work-head small { display: block; }
 .ai-work-head strong { font-size: 8px; font-weight: 610; }
 .ai-work-head small { margin-top: 3px; color: #74809d; font-size: 6.5px; }
@@ -454,7 +464,7 @@ textarea { resize: none; }
 .ai-card-meta small { font-size: inherit; }
 .open-chat-button { width: 100%; min-height: 34px; margin-top: 14px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 8px; font-weight: 560; cursor: pointer; }
 .ai-recommendation-label { margin-top: 14px; padding: 9px 0; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); }
-.ai-recommendation-label .brand-mark { width: 25px; height: 25px; flex-basis: 25px; border-radius: 7px; }
+.ai-recommendation-label .brand-mark { width: 44px; height: 25px; flex-basis: 44px; border-radius: 7px; }
 .ai-recommendation-label strong, .ai-recommendation-label small { display: block; }
 .ai-recommendation-label strong { font-size: 7.5px; font-weight: 590; }
 .ai-recommendation-label small { margin-top: 3px; color: var(--tertiary); font-size: 6.5px; }
@@ -483,7 +493,7 @@ textarea { resize: none; }
 }
 .start-content { width: min(100%, 760px); margin: 0 auto; }
 .start-brand { display: flex; justify-content: center; margin-bottom: 19px; }
-.start-brand .brand-mark { width: 38px; height: 38px; flex-basis: 38px; border-radius: 11px; font-size: 16px; }
+.start-brand .brand-mark { width: 68px; height: 38px; flex-basis: 68px; border-radius: 11px; }
 .start-content h1 {
   margin: 0;
   text-align: center;
@@ -652,7 +662,7 @@ textarea { resize: none; }
 .agent-message {
   margin: 0 0 34px;
   display: grid;
-  grid-template-columns: 29px minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr);
   align-items: start;
   gap: 12px;
 }
@@ -987,8 +997,8 @@ textarea { resize: none; }
   .transcript-end { scroll-margin-bottom: 132px; }
   .user-message-wrap { margin-bottom: 26px; }
   .user-message { max-width: 88%; font-size: 12px; }
-  .agent-message { grid-template-columns: 26px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
-  .agent-message > .brand-mark { width: 25px; height: 25px; flex-basis: 25px; border-radius: 7px; font-size: 11px; }
+  .agent-message { grid-template-columns: 44px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
+  .agent-message > .brand-mark { width: 44px; height: 25px; flex-basis: 44px; border-radius: 7px; }
   .agent-content > p { font-size: 13px; }
   .parameter-list { grid-template-columns: 1fr; }
   .parameter-row:nth-last-child(2) { border-bottom: 1px solid var(--border); }
@@ -1056,9 +1066,8 @@ html.lenis body { height: auto; }
 .serve-landing a { color: inherit; text-decoration: none; }
 .serve-pressable { transition: transform 140ms var(--ease-out); }
 .serve-pressable:active { transform: scale(.98); }
-.serve-brand { display: inline-flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
-.serve-brand img { width: 28px; height: 28px; object-fit: contain; }
-.serve-brand.is-inverse { color: #fff; }
+.serve-brand { display: inline-flex; align-items: center; }
+.serve-brand img { width: 99px; height: 28px; object-fit: contain; }
 .serve-brand.is-inverse img { filter: invert(1); }
 
 .serve-hero {

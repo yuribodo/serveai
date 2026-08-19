@@ -12,8 +12,7 @@ import { useRouter } from "next/navigation";
 function ServeAIBrand({ inverse = false }: { inverse?: boolean }) {
   return (
     <span className={`serve-brand ${inverse ? "is-inverse" : ""}`}>
-      <Image src="/serveai-logo.png" alt="" width={28} height={28} priority />
-      <span>ServeAI</span>
+      <Image src="/serveai-logo.svg" alt="ServeAI" width={99} height={28} priority />
     </span>
   );
 }

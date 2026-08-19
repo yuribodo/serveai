@@ -6,7 +6,7 @@ import {
   MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
   Settings, Star, UserRound, WalletCards, Wrench,
 } from "lucide-react";
-import type { ComponentType, FormEvent, KeyboardEvent, ReactNode } from "react";
+import type { ComponentType, FormEvent, KeyboardEvent, ReactNode, Ref } from "react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   bookingResult, fieldFlowReducer, initialFlowState,
@@ -136,8 +136,8 @@ function Composer({ value, onChange, onSubmit, placeholder, autoFocus = false, q
   );
 }
 
-function ComposerDock({ children }: { children: ReactNode }) {
-  return <div className="composer-dock">{children}<p>O FIELD pode cometer erros. Confirme informações importantes.</p></div>;
+function ComposerDock({ children, dockRef }: { children: ReactNode; dockRef?: Ref<HTMLDivElement> }) {
+  return <div className="composer-dock" ref={dockRef}>{children}<p>O FIELD pode cometer erros. Confirme informações importantes.</p></div>;
 }
 
 function StartScreen({ onStart }: { onStart: (message: string) => void }) {
@@ -323,6 +323,7 @@ function ActiveRequestScreen({ stage, originalRequest, request, phase, onUpdate,
   const [reply, setReply] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const composerDockRef = useRef<HTMLDivElement>(null);
   const followsLatestRef = useRef(true);
   const autoScrollingRef = useRef(false);
   const question: CollectionQuestion = !request.problem ? "problem" : !request.budget ? "budget" : "ready";
@@ -363,8 +364,11 @@ function ActiveRequestScreen({ stage, originalRequest, request, phase, onUpdate,
           autoScrollingRef.current = false;
           return;
         }
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        anchor.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "end" });
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const dockHeight = composerDockRef.current?.getBoundingClientRect().height ?? 0;
+        const visibleBottom = window.innerHeight - dockHeight - 12;
+        const offset = anchor.getBoundingClientRect().bottom - visibleBottom;
+        window.scrollBy({ top: offset, behavior: reduceMotion ? "auto" : "smooth" });
         settleTimer = window.setTimeout(() => {
           autoScrollingRef.current = false;
         }, reduceMotion ? 0 : 420);
@@ -399,7 +403,7 @@ function ActiveRequestScreen({ stage, originalRequest, request, phase, onUpdate,
           <div className="transcript-end" ref={transcriptEndRef} aria-hidden="true" />
         </div>
       </div>
-      <ComposerDock>
+      <ComposerDock dockRef={composerDockRef}>
         <div className="dock-state" key={dockKey}>
           {stage === "collect" && question !== "ready" && <Composer value={reply} onChange={setReply} onSubmit={submitReply} placeholder="Responda ao FIELD" quiet />}
           {stage === "collect" && question === "ready" && <div className="ready-dock"><Check size={15} />Revise os detalhes ou comece a busca acima</div>}

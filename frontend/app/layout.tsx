@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   title: "ServeAI — Serviços locais, resolvidos",
   description: "Encontre e contrate profissionais locais sem pesquisar, ligar ou negociar com cada um.",
   icons: {
-    icon: "/serveai-logo.png",
-    apple: "/serveai-logo.png",
+    icon: "/serveai-logo.svg",
+    apple: "/serveai-logo.svg",
   },
 };
 

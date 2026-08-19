@@ -84,25 +84,17 @@ textarea { resize: none; }
   cursor: pointer;
 }
 .brand-mark {
-  width: 27px;
-  height: 27px;
-  flex: 0 0 27px;
+  width: 66px;
+  height: 22px;
+  flex: 0 0 66px;
   display: inline-grid;
   place-items: center;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--inverse);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -.02em;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
 }
 .brand-mark img {
-  width: 74%;
-  height: 74%;
+  width: 100%;
+  height: auto;
   display: block;
   object-fit: contain;
-  filter: invert(1);
 }
 .icon-button {
   width: 36px;
@@ -280,7 +272,7 @@ textarea { resize: none; }
 }
 .start-content { width: min(100%, 760px); margin: 0 auto; }
 .start-brand { display: flex; justify-content: center; margin-bottom: 19px; }
-.start-brand .brand-mark { width: 38px; height: 38px; flex-basis: 38px; border-radius: 11px; font-size: 16px; }
+.start-brand .brand-mark { width: 92px; height: 28px; flex-basis: 92px; }
 .start-content h1 {
   margin: 0;
   text-align: center;
@@ -434,7 +426,7 @@ textarea { resize: none; }
 .agent-message {
   margin: 0 0 34px;
   display: grid;
-  grid-template-columns: 29px minmax(0, 1fr);
+  grid-template-columns: 66px minmax(0, 1fr);
   align-items: start;
   gap: 12px;
 }
@@ -706,8 +698,8 @@ textarea { resize: none; }
   .conversation-thread { padding-bottom: 20px; }
   .user-message-wrap { margin-bottom: 26px; }
   .user-message { max-width: 88%; font-size: 12px; }
-  .agent-message { grid-template-columns: 26px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
-  .agent-message > .brand-mark { width: 25px; height: 25px; flex-basis: 25px; border-radius: 7px; font-size: 11px; }
+  .agent-message { grid-template-columns: 52px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
+  .agent-message > .brand-mark { width: 52px; height: 18px; flex-basis: 52px; }
   .agent-content > p { font-size: 13px; }
   .parameter-list { grid-template-columns: 1fr; }
   .parameter-row:nth-last-child(2) { border-bottom: 1px solid var(--border); }
@@ -757,8 +749,8 @@ html.lenis body { height: auto; }
 .serve-landing a { color: inherit; text-decoration: none; }
 .serve-pressable { transition: transform 140ms var(--ease-out); }
 .serve-pressable:active { transform: scale(.98); }
-.serve-brand { display: inline-flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
-.serve-brand img { width: 28px; height: 28px; object-fit: contain; }
+.serve-brand { display: inline-flex; align-items: center; }
+.serve-brand img { width: 78px; height: auto; object-fit: contain; }
 .serve-brand.is-inverse { color: #fff; }
 .serve-brand.is-inverse img { filter: invert(1); }
 

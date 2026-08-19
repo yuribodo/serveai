@@ -41,6 +41,15 @@
   white-space: pre-wrap;
 }
 
+.agentAvatar {
+  width: 29px;
+  height: 29px;
+  display: block;
+  border: 1px solid #e4e4e1;
+  border-radius: 50%;
+  background: #f1f1ef;
+}
+
 .emptyHistory {
   display: block;
   padding: 7px 10px;
@@ -415,6 +424,11 @@
 
   .thread {
     gap: 14px;
+  }
+
+  .agentAvatar {
+    width: 25px;
+    height: 25px;
   }
 
   .providerRow {

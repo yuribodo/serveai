@@ -131,6 +131,10 @@ function BrandMark() {
   );
 }
 
+function AgentAvatar() {
+  return <span className={styles.agentAvatar} aria-hidden="true" />;
+}
+
 function Sidebar({
   open,
   active,
@@ -430,7 +434,7 @@ function TimelineItemView({
         </div>
       ) : (
         <div className="agent-message">
-          <BrandMark />
+          <AgentAvatar />
           <div className="agent-content"><p className={styles.agentBubble}>{item.content}</p></div>
         </div>
       );

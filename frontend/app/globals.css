@@ -426,7 +426,7 @@ textarea { resize: none; }
 .agent-message {
   margin: 0 0 34px;
   display: grid;
-  grid-template-columns: 66px minmax(0, 1fr);
+  grid-template-columns: 29px minmax(0, 1fr);
   align-items: start;
   gap: 12px;
 }
@@ -698,8 +698,7 @@ textarea { resize: none; }
   .conversation-thread { padding-bottom: 20px; }
   .user-message-wrap { margin-bottom: 26px; }
   .user-message { max-width: 88%; font-size: 12px; }
-  .agent-message { grid-template-columns: 52px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
-  .agent-message > .brand-mark { width: 52px; height: 18px; flex-basis: 52px; }
+  .agent-message { grid-template-columns: 25px minmax(0, 1fr); gap: 9px; margin-bottom: 29px; }
   .agent-content > p { font-size: 13px; }
   .parameter-list { grid-template-columns: 1fr; }
   .parameter-row:nth-last-child(2) { border-bottom: 1px solid var(--border); }

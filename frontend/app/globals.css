@@ -236,11 +236,6 @@ textarea { resize: none; }
 .mobile-menu { display: none; }
 .chat-title { display: flex; align-items: center; gap: 10px; }
 .chat-title > strong { font-size: 13px; font-weight: 570; }
-.header-state-copy {
-  display: inline-block;
-  transition: opacity 140ms ease, filter 140ms ease;
-  @starting-style { opacity: 0; filter: blur(2px); }
-}
 .chat-status {
   min-height: 24px;
   padding: 0 8px;
@@ -271,10 +266,6 @@ textarea { resize: none; }
   cursor: pointer;
 }
 .app-main { min-height: calc(100dvh - 64px); flex: 1; }
-.stage-panel {
-  transition: opacity 180ms var(--ease-out);
-  @starting-style { opacity: 0; }
-}
 
 /* Start */
 .start-screen {
@@ -432,13 +423,13 @@ textarea { resize: none; }
 }
 .active-flow-screen .conversation-thread > .user-message-wrap:first-child { margin-top: auto; }
 .thread-stage-entry:not(.is-result) {
-  transition: opacity 180ms var(--ease-out), filter 180ms ease, transform 180ms var(--ease-out);
-  @starting-style { opacity: 0; filter: blur(2px); transform: translateY(4px); }
+  transition: transform 200ms var(--ease-out);
+  @starting-style { transform: translateY(8px); }
 }
 .transcript-end { height: 1px; scroll-margin-bottom: 118px; }
 .thread-append {
-  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
-  @starting-style { opacity: 0; transform: translateY(6px); }
+  transition: transform 180ms var(--ease-out);
+  @starting-style { transform: translateY(8px); }
 }
 .user-message-wrap { margin: 0 0 32px; display: flex; justify-content: flex-end; }
 .user-message {
@@ -516,9 +507,6 @@ textarea { resize: none; }
 .parameter-row.is-empty .parameter-copy strong { color: var(--tertiary); font-weight: 430; }
 .parameter-value-swap {
   display: block;
-  transition: opacity 140ms ease, filter 140ms ease, transform 140ms var(--ease-out);
-  transform-origin: left center;
-  @starting-style { opacity: 0; filter: blur(2px); transform: scale(.985); }
 }
 .parameter-input { width: 100%; height: 28px; padding: 0 7px; border: 1px solid var(--border-strong); border-radius: 7px; outline: 0; background: var(--surface); font-size: 10px; }
 .edit-parameter {
@@ -556,8 +544,6 @@ textarea { resize: none; }
 .ready-state-swap {
   display: inline-flex;
   flex: 0 0 auto;
-  transition: opacity 140ms ease, filter 140ms ease, transform 140ms var(--ease-out);
-  @starting-style { opacity: 0; filter: blur(2px); transform: scale(.985); }
 }
 .search-started {
   min-height: 42px;
@@ -597,11 +583,6 @@ textarea { resize: none; }
 .composer-dock .composer { min-height: 82px; border-radius: 18px; box-shadow: 0 7px 26px rgb(20 20 20 / 7%); }
 .composer-dock .composer textarea { font-size: 13px; }
 .composer-dock > p { margin: 7px 0 0; color: var(--tertiary); font-size: 8px; text-align: center; }
-.dock-state {
-  transition: opacity 160ms ease, filter 160ms ease, transform 160ms var(--ease-out);
-  transform-origin: center bottom;
-  @starting-style { opacity: 0; filter: blur(2px); transform: scale(.985); }
-}
 .ready-dock {
   min-height: 50px;
   display: flex;
@@ -667,8 +648,6 @@ textarea { resize: none; }
   height: 100%;
   display: grid;
   place-items: center;
-  transition: opacity 140ms ease, filter 140ms ease, transform 160ms var(--ease-out);
-  @starting-style { opacity: 0; filter: blur(1.5px); transform: scale(.96); }
 }
 .activity-copy { min-width: 0; display: flex; align-items: baseline; gap: 6px; }
 .activity-copy > span { font-size: 10px; font-weight: 520; }
@@ -687,8 +666,8 @@ textarea { resize: none; }
 
 /* Result */
 .result-reveal {
-  transition: opacity 220ms var(--ease-out), filter 180ms ease, transform 220ms var(--ease-out);
-  @starting-style { opacity: 0; filter: blur(2px); transform: translateY(6px); }
+  transition: opacity 200ms var(--ease-out), transform 220ms var(--ease-out);
+  @starting-style { opacity: 0; transform: translateY(8px); }
 }
 .result-screen .agent-content > .muted-copy.result-reveal { transition-delay: 30ms; }
 .booking-card.result-reveal { transition-delay: 60ms; }
@@ -814,7 +793,7 @@ textarea { resize: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stage-panel, .thread-stage-entry, .thread-append, .dock-state, .header-state-copy, .parameter-value-swap, .ready-state-swap, .activity-icon-swap, .result-reveal, .appointment-details, .sidebar, .sidebar-backdrop { filter: none; transform: none; transition: opacity 160ms ease; transition-delay: 0ms; }
+  .thread-stage-entry, .thread-append, .result-reveal, .appointment-details, .sidebar, .sidebar-backdrop { transform: none; transition: opacity 160ms ease; transition-delay: 0ms; }
   .pressable, .activity-row, .booking-action > svg { transition-duration: 0ms; }
   .activity-spinner { animation-duration: 1400ms; }
   .chat-status.is-work i { animation: none; }

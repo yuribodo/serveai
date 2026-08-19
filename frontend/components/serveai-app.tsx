@@ -111,7 +111,7 @@ function ChatHeader({ stage, title, onOpenMenu, onReset }: { stage: string; titl
     <header className="chat-header">
       <div className="chat-header-left">
         <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
-        <div className="chat-title"><strong className="header-state-copy" key={title}>{title}</strong><span className={`chat-status is-${stage}`}><i /><span className="header-state-copy" key={status}>{status}</span></span></div>
+        <div className="chat-title"><strong>{title}</strong><span className={`chat-status is-${stage}`}><i /><span>{status}</span></span></div>
       </div>
       <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Novo chat</span></button>
     </header>
@@ -477,7 +477,7 @@ function ParameterRow({ field, value, onChange }: { field: EditableField; value:
     <div className={`parameter-row ${!value ? "is-empty" : ""} ${!onChange ? "is-readonly" : ""}`}>
       <span className="parameter-icon"><Icon size={15} strokeWidth={1.7} /></span>
       <span className="parameter-copy"><small>{label}</small>
-        <span className="parameter-value-swap" key={editing ? "editing" : "value"}>
+        <span className="parameter-value-swap">
           {editing ? (
             <input ref={inputRef} className="parameter-input" value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={save} onKeyDown={(event) => {
               if (event.key === "Enter") save();
@@ -529,18 +529,18 @@ function CollectContent({ request, question, historical, onUpdate, onAnswer, onB
         <p className="muted-copy">Você pode revisar e editar qualquer detalhe antes de eu começar.</p>
         <RequestSummary request={request} onUpdate={historical ? undefined : onUpdate} />
       </AgentMessage>
-      {question === "location" && <div className="thread-append"><AgentMessage><p>Onde você está?</p><p className="muted-copy">Use o botão de localização abaixo ou digite seu endereço, bairro ou CEP.</p></AgentMessage></div>}
-      {request.problem && <div className="thread-append"><UserMessage>{request.problem}</UserMessage></div>}
-      {question === "problem" && <div className="thread-append"><AgentMessage><p>O que aconteceu com a fechadura?</p><p className="muted-copy">Isso me ajuda a encontrar o profissional certo.</p><OptionChips options={problemOptions} onSelect={onAnswer} /></AgentMessage></div>}
-      {question === "budget" && <div className="thread-append"><AgentMessage><p>Perfeito. Quanto você gostaria de gastar?</p><OptionChips options={budgetOptions} onSelect={onAnswer} /></AgentMessage></div>}
-      {request.budget && <div className="thread-append"><UserMessage>{request.budget}</UserMessage></div>}
+      {question === "location" && <div className="thread-append" key="question-location"><AgentMessage><p>Onde você está?</p><p className="muted-copy">Use o botão de localização abaixo ou digite seu endereço, bairro ou CEP.</p></AgentMessage></div>}
+      {request.problem && <div className="thread-append" key="answer-problem"><UserMessage>{request.problem}</UserMessage></div>}
+      {question === "problem" && <div className="thread-append" key="question-problem"><AgentMessage><p>O que aconteceu com a fechadura?</p><p className="muted-copy">Isso me ajuda a encontrar o profissional certo.</p><OptionChips options={problemOptions} onSelect={onAnswer} /></AgentMessage></div>}
+      {question === "budget" && <div className="thread-append" key="question-budget"><AgentMessage><p>Perfeito. Quanto você gostaria de gastar?</p><OptionChips options={budgetOptions} onSelect={onAnswer} /></AgentMessage></div>}
+      {request.budget && <div className="thread-append" key="answer-budget"><UserMessage>{request.budget}</UserMessage></div>}
       {question === "ready" && (
-        <div className="thread-append">
+        <div className="thread-append" key="question-ready">
           <AgentMessage>
             <p>Ótimo, tenho tudo o que preciso.</p>
             <p className="muted-copy">Posso comparar os profissionais disponíveis e cuidar do agendamento para você.</p>
             <div className="ready-actions">
-              <span className="ready-state-swap" key={historical ? "started" : "ready"}>
+              <span className="ready-state-swap">
                 {historical ? <span className="search-started"><Check size={14} strokeWidth={2.1} />Busca iniciada</span> : (
                   <button className="primary-button pressable" type="button" onClick={onBegin}>
                     <Search size={16} strokeWidth={1.9} />
@@ -559,7 +559,7 @@ function CollectContent({ request, question, historical, onUpdate, onAnswer, onB
 
 function ActivityIcon({ status }: { status: "done" | "active" | "pending" }) {
   return (
-    <span className="activity-icon-swap" key={status}>
+    <span className="activity-icon-swap">
       {status === "done" && <Check size={14} strokeWidth={2.2} />}
       {status === "active" && <CircleDashed className="activity-spinner" size={16} strokeWidth={1.8} />}
       {status === "pending" && <Circle size={13} strokeWidth={1.5} />}
@@ -645,7 +645,7 @@ function ActiveRequestScreen({ stage, originalRequest, request, phase, onUpdate,
     setReply("");
   };
   const submitReply = () => reply.trim() && question !== "ready" && answer(reply);
-  const dockKey = stage === "collect" && question !== "ready" ? `collect-${question}` : `${stage}-${question}`;
+  const dockKey = stage === "collect" && question !== "ready" ? "collect-input" : `${stage}-${question}`;
 
   useEffect(() => {
     if (stage !== "result") setDetailsOpen(false);

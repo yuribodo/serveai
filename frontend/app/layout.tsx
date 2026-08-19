@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ServeAI — Serviços locais, resolvidos",
-  description: "Um agente autônomo para contratar serviços locais por você.",
+  description: "Encontre e contrate profissionais locais sem pesquisar, ligar ou negociar com cada um.",
   icons: {
     icon: "/serveai-logo.png",
     apple: "/serveai-logo.png",

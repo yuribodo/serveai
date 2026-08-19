@@ -1,4 +1,4 @@
-# FIELD
+# ServeAI
 
 ## Autonomous Local Services Agent
 
@@ -10,7 +10,7 @@
 
 # 1. Product Vision
 
-FIELD is an AI agent that gets local service jobs done on behalf of the user.
+ServeAI is an AI agent that gets local service jobs done on behalf of the user.
 
 Instead of:
 
@@ -20,13 +20,13 @@ The user says:
 
 > **“Preciso de um chaveiro.”**
 
-FIELD takes over the operational work.
+ServeAI takes over the operational work.
 
 It understands what is needed, collects the user's constraints, searches for suitable professionals nearby, contacts them, understands their responses, selects an option that satisfies the user's constraints and creates the appointment.
 
 ### Product promise
 
-**Ask once. FIELD handles the rest.**
+**Ask once. ServeAI handles the rest.**
 
 ---
 
@@ -49,17 +49,17 @@ For something as simple as finding a locksmith, plumber, electrician or technici
 
 Search engines help users **discover** providers.
 
-FIELD should help users **complete the job**.
+ServeAI should help users **complete the job**.
 
 ---
 
 # 3. V1 Product Thesis
 
-FIELD is not:
+ServeAI is not:
 
 **“AI that recommends local businesses.”**
 
-FIELD is:
+ServeAI is:
 
 **“AI that hires the local business for you.”**
 
@@ -94,9 +94,9 @@ User:
 
 > “Preciso de um chaveiro.”
 
-FIELD identifies missing information.
+ServeAI identifies missing information.
 
-### FIELD
+### ServeAI
 
 > “Consigo resolver isso para você. Onde você está?”
 
@@ -106,7 +106,7 @@ The user can:
 - enter an address;
 - enter neighborhood / ZIP code.
 
-Then FIELD asks:
+Then ServeAI asks:
 
 > “O que aconteceu com a fechadura?”
 
@@ -114,7 +114,7 @@ Example:
 
 > “Perdi minha chave e estou trancado para fora.”
 
-FIELD:
+ServeAI:
 
 > “Quanto você gostaria de gastar?”
 
@@ -122,7 +122,7 @@ User:
 
 > “Entre R$100 e R$200.”
 
-FIELD:
+ServeAI:
 
 > “Quando você consegue receber o chaveiro?”
 
@@ -130,7 +130,7 @@ User:
 
 > “Hoje entre 14h e 18h.”
 
-FIELD now has enough information to act.
+ServeAI now has enough information to act.
 
 ---
 
@@ -177,7 +177,7 @@ The LLM should extract as much as possible from the original message and ask onl
 
 # 6. Required Information
 
-Before FIELD begins searching, the request must contain:
+Before ServeAI begins searching, the request must contain:
 
 
 | Field           | Required | Example              |
@@ -191,13 +191,13 @@ Before FIELD begins searching, the request must contain:
 | Exact address   | Later    | Shared after booking |
 
 
-FIELD should avoid asking questions when the information can already be inferred from the conversation.
+ServeAI should avoid asking questions when the information can already be inferred from the conversation.
 
 ---
 
 # 7. Provider Discovery
 
-Once the request is complete, FIELD searches for local providers.
+Once the request is complete, ServeAI searches for local providers.
 
 ### Search
 
@@ -241,7 +241,7 @@ Provider {
 
 ### Candidate selection
 
-FIELD initially selects approximately **3–5 providers**.
+ServeAI initially selects approximately **3–5 providers**.
 
 Ranking factors:
 
@@ -298,7 +298,7 @@ no email found
 
 ```
 
-Future FIELD versions could fall back to:
+Future ServeAI versions could fall back to:
 
 ```text
 WhatsApp
@@ -314,7 +314,7 @@ But those are outside the hackathon V1.
 
 # 9. Outreach
 
-Once FIELD has candidate providers, the AI contacts them automatically.
+Once ServeAI has candidate providers, the AI contacts them automatically.
 
 Example email:
 
@@ -349,7 +349,7 @@ Você consegue realizar o serviço?
 
 Se sim, responda com o valor e o horário disponível.
 
-FIELD
+ServeAI
 
 ```
 
@@ -357,7 +357,7 @@ Important:
 
 The exact residential address should not need to be exposed during the initial discovery stage.
 
-Initially FIELD can share only the approximate service area.
+Initially ServeAI can share only the approximate service area.
 
 The precise address becomes part of the booking after the provider is selected.
 
@@ -365,7 +365,7 @@ The precise address becomes part of the booking after the provider is selected.
 
 # 10. Parallel Outreach
 
-FIELD should not wait for providers sequentially.
+ServeAI should not wait for providers sequentially.
 
 Instead:
 
@@ -408,7 +408,7 @@ request+req_8127@reply.field.ai
 
 ```
 
-When the provider replies, FIELD receives the incoming email.
+When the provider replies, ServeAI receives the incoming email.
 
 Resend currently supports inbound email and can fire an `email.received` webhook when a response arrives, which makes this asynchronous loop viable without repeatedly polling an inbox.
 
@@ -416,7 +416,7 @@ Example provider response:
 
 > “Boa tarde. Consigo ir às 15:30. Fica R$180.”
 
-FIELD converts this into:
+ServeAI converts this into:
 
 ```ts
 ProviderOffer {
@@ -468,7 +468,7 @@ The AI interprets those responses.
 
 # 13. Decision Engine
 
-FIELD compares the provider response against the constraints established by the user.
+ServeAI compares the provider response against the constraints established by the user.
 
 User:
 
@@ -501,7 +501,7 @@ Result:
 
 # 14. Autonomous Booking Rule
 
-FIELD can book automatically when all previously authorized constraints are satisfied.
+ServeAI can book automatically when all previously authorized constraints are satisfied.
 
 Example:
 
@@ -514,17 +514,17 @@ provider offers requested service
 
 ```
 
-Then FIELD does not need to ask:
+Then ServeAI does not need to ask:
 
 > “Posso marcar?”
 
 The user already defined the boundaries.
 
-This is an important part of making FIELD feel like an **agent rather than a chatbot**.
+This is an important part of making ServeAI feel like an **agent rather than a chatbot**.
 
 ---
 
-# 15. When FIELD Must Ask the User
+# 15. When ServeAI Must Ask the User
 
 Provider:
 
@@ -538,7 +538,7 @@ max R$200
 
 ```
 
-FIELD must not accept automatically.
+ServeAI must not accept automatically.
 
 Instead:
 
@@ -554,12 +554,12 @@ A provider may respond:
 
 > “Qual é o modelo da fechadura?”
 
-FIELD first checks whether it already knows the answer.
+ServeAI first checks whether it already knows the answer.
 
 If yes:
 
 ```text
-FIELD → responds automatically
+ServeAI → responds automatically
 
 ```
 
@@ -568,7 +568,7 @@ If no:
 ```text
 Provider
    ↓
-FIELD
+ServeAI
    ↓
 User
 
@@ -582,13 +582,13 @@ User:
 
 > “É uma fechadura comum.”
 
-FIELD replies to the provider automatically.
+ServeAI replies to the provider automatically.
 
 ---
 
 # 17. Calendar Booking
 
-Once an offer is accepted, FIELD creates the appointment.
+Once an offer is accepted, ServeAI creates the appointment.
 
 ```text
 Chaveiro — Abertura de porta
@@ -610,21 +610,21 @@ Google Calendar supports creating events and adding other people as attendees.
 
 ### User
 
-FIELD creates the event in the user's connected calendar.
+ServeAI creates the event in the user's connected calendar.
 
 ### Provider
 
-If the provider has connected FIELD:
+If the provider has connected ServeAI:
 
 ```text
-FIELD → create directly in provider calendar
+ServeAI → create directly in provider calendar
 
 ```
 
 If the provider is external:
 
 ```text
-FIELD → add provider email as attendee
+ServeAI → add provider email as attendee
 
 ```
 
@@ -642,7 +642,7 @@ The conversation becomes:
 
 > Preciso de um chaveiro.
 
-### FIELD
+### ServeAI
 
 > Claro. Onde você está?
 
@@ -650,7 +650,7 @@ The conversation becomes:
 
 > Pinheiros, São Paulo.
 
-### FIELD
+### ServeAI
 
 > O que aconteceu?
 
@@ -658,7 +658,7 @@ The conversation becomes:
 
 > Perdi minha chave e estou trancado pra fora.
 
-### FIELD
+### ServeAI
 
 > Qual faixa de valor você quer gastar?
 
@@ -666,7 +666,7 @@ The conversation becomes:
 
 > Até R$200.
 
-### FIELD
+### ServeAI
 
 > Qual seu horário disponível?
 
@@ -674,7 +674,7 @@ The conversation becomes:
 
 > Hoje entre 14h e 18h.
 
-### FIELD
+### ServeAI
 
 > Entendi. Vou procurar chaveiros próximos que consigam atender dentro desse horário e orçamento.
 
@@ -728,7 +728,7 @@ BOOKED ✓
 
 ```
 
-FIELD:
+ServeAI:
 
 > **Resolvido. O Chaveiro Pinheiros confirmou por R$180 e chega às 15:30. Já coloquei o compromisso na sua agenda e enviei a confirmação para ele.**
 
@@ -899,7 +899,7 @@ Provider selected for outreach.
 
 ## Outreach
 
-Email/thread between FIELD and provider.
+Email/thread between ServeAI and provider.
 
 ## ProviderOffer
 
@@ -911,7 +911,7 @@ Final agreement.
 
 ## AgentEvent
 
-Every action FIELD performs.
+Every action ServeAI performs.
 
 Example:
 
@@ -937,7 +937,7 @@ Example:
 ```text
 ┌──────────────────────────────────────┐
 
- FIELD
+ ServeAI
 
  Preciso de um chaveiro.
 
@@ -991,9 +991,9 @@ The operational state lives inside the chat.
 
 # 23. User Notifications
 
-The user does not need to keep FIELD open.
+The user does not need to keep ServeAI open.
 
-If FIELD is waiting for a provider:
+If ServeAI is waiting for a provider:
 
 ```text
 WAITING_FOR_REPLIES
@@ -1034,11 +1034,11 @@ The hackathon version is considered successful when this full loop works:
 - Request becomes structured data.
 - Real local providers are searched.
 - Provider candidates appear in the UI.
-- FIELD sends an actual email.
+- ServeAI sends an actual email.
 - Provider can reply to that email.
-- FIELD receives the response.
+- ServeAI receives the response.
 - AI extracts price and availability from natural language.
-- FIELD compares the offer with user constraints.
+- ServeAI compares the offer with user constraints.
 - Matching offer is accepted.
 - Calendar event is created.
 - User receives final confirmation in chat.
@@ -1066,7 +1066,7 @@ Do **not** build these before the core flow works:
 - Production-grade ranking
 - Native mobile application
 
-All of those are potential FIELD features.
+All of those are potential ServeAI features.
 
 None proves the core hypothesis better than the main loop.
 
@@ -1085,13 +1085,13 @@ Demo:
 ```text
 User
  ↓
-FIELD Chat
+ServeAI Chat
  ↓
 Google Places
  ↓
 real providers appear
  ↓
-FIELD sends outreach
+ServeAI sends outreach
  ↓
 controlled provider inbox
  ↓
@@ -1123,7 +1123,7 @@ This proves every difficult technical primitive without making the presentation 
                               │
                               ▼
                      ┌─────────────────┐
-                     │   FIELD CHAT    │
+                     │   ServeAI CHAT    │
                      │    Next.js      │
                      └────────┬────────┘
                               │
@@ -1150,7 +1150,7 @@ This proves every difficult technical primitive without making the presentation 
                            response
                               │
                               ▼
-                         FIELD Chat
+                         ServeAI Chat
 
 ```
 
@@ -1235,7 +1235,7 @@ The V1 hypothesis is proven if a user can start with:
 
 > **“Preciso de um chaveiro.”**
 
-and without leaving FIELD eventually reach:
+and without leaving ServeAI eventually reach:
 
 > **“Resolvido. O chaveiro chega às 15:30 por R$180. O compromisso já está na sua agenda.”**
 
@@ -1281,7 +1281,7 @@ searches
 
 ```
 
-FIELD succeeds when the user's problem goes from:
+ServeAI succeeds when the user's problem goes from:
 
 ```text
 "I need someone."
@@ -1297,4 +1297,4 @@ to:
 
 # Product tagline
 
-**FIELD — Say what you need. Consider it handled.**
+**ServeAI — Say what you need. Consider it handled.**

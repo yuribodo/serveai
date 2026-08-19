@@ -1,5 +1,5 @@
-import { FieldApp } from "@/components/field-app";
+import { LandingPage } from "@/components/landing-page";
 
 export default function Home() {
-  return <FieldApp />;
+  return <LandingPage />;
 }

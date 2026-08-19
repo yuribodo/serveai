@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fieldFlowReducer, initialFlowState, isRequestReady } from "./flow";
 
-describe("FIELD flow", () => {
+describe("ServeAI flow", () => {
   it("does not start with an empty request", () => {
     expect(fieldFlowReducer(initialFlowState, { type: "START_REQUEST", message: "  " })).toEqual(
       initialFlowState,
@@ -20,6 +20,11 @@ describe("FIELD flow", () => {
 
     state = fieldFlowReducer(state, {
       type: "UPDATE_FIELD",
+      field: "location",
+      value: "Pinheiros, São Paulo",
+    });
+    state = fieldFlowReducer(state, {
+      type: "UPDATE_FIELD",
       field: "problem",
       value: "Perdi a chave",
     });
@@ -31,6 +36,45 @@ describe("FIELD flow", () => {
 
     expect(isRequestReady(state.request)).toBe(true);
     expect(fieldFlowReducer(state, { type: "BEGIN_WORK" }).stage).toBe("work");
+  });
+
+  it("stores GPS coordinates supplied with the request", () => {
+    const state = fieldFlowReducer(initialFlowState, {
+      type: "START_REQUEST",
+      message: "Preciso de um chaveiro",
+      location: {
+        label: "Pinheiros, São Paulo",
+        latitude: -23.55052,
+        longitude: -46.633308,
+        accuracy: 10,
+      },
+    });
+
+    expect(state.request.location).toBe("Pinheiros, São Paulo");
+    expect(state.request.latitude).toBe(-23.55052);
+    expect(state.request.longitude).toBe(-46.633308);
+    expect(state.request.locationAccuracy).toBe(10);
+  });
+
+  it("clears GPS coordinates when the location is manually edited", () => {
+    const withGps = fieldFlowReducer(initialFlowState, {
+      type: "UPDATE_LOCATION",
+      location: {
+        label: "Pinheiros, São Paulo",
+        latitude: -23.55052,
+        longitude: -46.633308,
+        accuracy: 10,
+      },
+    });
+    const edited = fieldFlowReducer(withGps, {
+      type: "UPDATE_FIELD",
+      field: "location",
+      value: "Pinheiros, São Paulo",
+    });
+
+    expect(edited.request.location).toBe("Pinheiros, São Paulo");
+    expect(edited.request.latitude).toBeNull();
+    expect(edited.request.longitude).toBeNull();
   });
 
   it("preserves the request when the user returns to adjust it", () => {

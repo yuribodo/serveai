@@ -1,18 +1,18 @@
-# FIELD — Design System & Product UI Direction
+# ServeAI — Design System & Product UI Direction
 
 **Version:** Hackathon V1  
-**Product:** FIELD — Autonomous Local Services Agent  
-**Primary flow:** User asks for a local service → FIELD collects constraints → searches providers → contacts them → waits for replies → evaluates offers → books the service.
+**Product:** ServeAI — Autonomous Local Services Agent
+**Primary flow:** User asks for a local service → ServeAI collects constraints → searches providers → contacts them → waits for replies → evaluates offers → books the service.
 
 ---
 
 ## 1. Design Vision
 
-FIELD should not look like a traditional chatbot.
+ServeAI should not look like a traditional chatbot.
 
 The visual goal is to make the product feel like a **minimal command center for getting real-world tasks done**.
 
-The user speaks naturally. FIELD converts that language into structured intent, performs work in the background, surfaces operational progress, and returns a concrete outcome.
+The user speaks naturally. ServeAI converts that language into structured intent, performs work in the background, surfaces operational progress, and returns a concrete outcome.
 
 The interface should communicate:
 
@@ -26,8 +26,8 @@ The interface should communicate:
 
 ### Core statement
 
-> FIELD is not a messenger.  
-> FIELD is an agent workspace.
+> ServeAI is not a messenger.
+> ServeAI is an agent workspace.
 
 The visual language should feel closer to:
 
@@ -41,13 +41,13 @@ Approximate visual influence:
 - **40% Linear**
 - **30% ChatGPT Agent**
 - **20% Perplexity**
-- **10% FIELD identity**
+- **10% ServeAI identity**
 
 ---
 
 # 2. Product Personality
 
-FIELD is:
+ServeAI is:
 
 - direct;
 - neutral;
@@ -57,7 +57,7 @@ FIELD is:
 - useful;
 - quiet.
 
-FIELD is not:
+ServeAI is not:
 
 - playful;
 - overly friendly;
@@ -85,29 +85,29 @@ The product should look like software you trust with a real appointment.
 
 # 3. Core Interaction Model
 
-The FIELD conversation has **three distinct visual languages**.
+The ServeAI conversation has **three distinct visual languages**.
 
 ## 3.1 Conversation
 
-Natural language between user and FIELD.
+Natural language between user and ServeAI.
 
 Example:
 
 > Preciso de um chaveiro.
 
-FIELD:
+ServeAI:
 
 > Onde você precisa do serviço?
 
 Conversation should be visually lightweight.
 
-The user may use a subtle message pill, but FIELD responses should generally live directly on the canvas rather than inside large assistant bubbles.
+The user may use a subtle message pill, but ServeAI responses should generally live directly on the canvas rather than inside large assistant bubbles.
 
 ---
 
 ## 3.2 Work
 
-Actions FIELD is currently performing.
+Actions ServeAI is currently performing.
 
 Examples:
 
@@ -174,7 +174,7 @@ Do not recreate WhatsApp.
 
 Avoid alternating large left/right chat bubbles.
 
-FIELD content should live naturally on the main surface.
+ServeAI content should live naturally on the main surface.
 
 ---
 
@@ -190,7 +190,7 @@ Use cards only when the information itself is a meaningful object:
 - result;
 - booking.
 
-Do not wrap every FIELD response inside a card.
+Do not wrap every ServeAI response inside a card.
 
 ---
 
@@ -211,7 +211,7 @@ When
 Today · 14:00–18:00
 ```
 
-This shows the user what FIELD understood.
+This shows the user what ServeAI understood.
 
 ---
 
@@ -219,7 +219,7 @@ This shows the user what FIELD understood.
 
 Never show:
 
-> FIELD is typing...
+> ServeAI is typing...
 
 Prefer explicit operational states:
 
@@ -231,13 +231,13 @@ Prefer explicit operational states:
 - Booking;
 - Done.
 
-The user should always understand what FIELD is doing.
+The user should always understand what ServeAI is doing.
 
 ---
 
 ## 4.5 Progressive Disclosure
 
-FIELD should only show the information needed for the current stage.
+ServeAI should only show the information needed for the current stage.
 
 Do not show the full operational system from the beginning.
 
@@ -261,7 +261,7 @@ Autonomous actions should feel controlled, not chaotic.
 
 Avoid excessive animation or rapidly changing elements.
 
-FIELD should communicate:
+ServeAI should communicate:
 
 > I understand the constraints. I am handling it.
 
@@ -347,7 +347,7 @@ font-family:
   sans-serif;
 ```
 
-Geist fits FIELD because it feels:
+Geist fits ServeAI because it feels:
 
 - modern;
 - neutral;
@@ -491,7 +491,7 @@ Max content width:
 760–860px
 ```
 
-FIELD should feel focused.
+ServeAI should feel focused.
 
 Do not fill the whole screen with panels for V1.
 
@@ -499,7 +499,7 @@ Recommended shell:
 
 ```text
 ┌──────────────────────────────────────────────┐
-│ FIELD                             New task   │
+│ ServeAI                             New task   │
 │                                              │
 │                                              │
 │       Main conversation / task surface       │
@@ -539,7 +539,7 @@ Maintain strong whitespace.
 
 # 9. Core Primitive Components
 
-FIELD V1 should be built primarily from five primitives.
+ServeAI V1 should be built primarily from five primitives.
 
 ---
 
@@ -564,7 +564,7 @@ Visual:
 - no shadow;
 - aligned right or slightly indented.
 
-### FIELD
+### ServeAI
 
 Do not use a bubble.
 
@@ -612,7 +612,7 @@ Today · 14:00–18:00               Change
 
 # 9.3 AgentActivity
 
-Represents FIELD doing work.
+Represents ServeAI doing work.
 
 Example:
 
@@ -693,7 +693,7 @@ Provider confirmed
 
 # 10. Core Application States
 
-FIELD needs explicit execution states.
+ServeAI needs explicit execution states.
 
 ## Searching
 
@@ -741,7 +741,7 @@ Label:
 Waiting for replies
 ```
 
-This is especially important because FIELD is asynchronous.
+This is especially important because ServeAI is asynchronous.
 
 ---
 
@@ -806,14 +806,14 @@ Create an extremely simple entry point.
 ### Layout
 
 ```text
-FIELD
+ServeAI
 
 
 What do you need?
 
 
 ┌──────────────────────────────────────────┐
-│ Tell FIELD what you need...              │
+│ Tell ServeAI what you need...              │
 │                                      ↑   │
 └──────────────────────────────────────────┘
 
@@ -846,13 +846,13 @@ The product should feel immediately usable.
 
 # Screen 02 — Collect
 
-The conversation begins and FIELD extracts structured information.
+The conversation begins and ServeAI extracts structured information.
 
 Example user input:
 
 > Preciso de um chaveiro em Pinheiros hoje à tarde.
 
-FIELD renders:
+ServeAI renders:
 
 ```text
 Got it. Here's what I have:
@@ -885,7 +885,7 @@ If user gives everything at once:
 
 > Preciso de um chaveiro em Pinheiros hoje entre 14 e 18h. Posso gastar até R$200.
 
-FIELD should not ask redundant questions.
+ServeAI should not ask redundant questions.
 
 Immediately render:
 
@@ -905,7 +905,7 @@ Example:
 
 # Screen 03 — Work
 
-FIELD now has enough information.
+ServeAI now has enough information.
 
 Transition:
 
@@ -980,7 +980,7 @@ Secondary action:
 View other options
 ```
 
-If FIELD is configured for autonomous booking and all user constraints are satisfied:
+If ServeAI is configured for autonomous booking and all user constraints are satisfied:
 
 ```text
 Matches your preferences.
@@ -1033,7 +1033,7 @@ The composer is one of the most important elements.
 
 ```text
 ┌──────────────────────────────────────────┐
-│ Tell FIELD what you need...          ↑   │
+│ Tell ServeAI what you need...          ↑   │
 └──────────────────────────────────────────┘
 ```
 
@@ -1123,7 +1123,7 @@ Allowed:
 
 Avoid cards around:
 
-- plain FIELD text;
+- plain ServeAI text;
 - every execution step;
 - generic messages.
 
@@ -1192,7 +1192,7 @@ state transition:
 
 ## Execution Progress
 
-When FIELD performs actions:
+When ServeAI performs actions:
 
 ```text
 Searching
@@ -1254,7 +1254,7 @@ No celebration modal.
 
 # 17. Copywriting Style
 
-FIELD copy must be:
+ServeAI copy must be:
 
 - short;
 - confident;
@@ -1444,7 +1444,7 @@ Example:
 ✓ 3 providers contacted
 ```
 
-### What does FIELD need from the user?
+### What does ServeAI need from the user?
 
 Example:
 
@@ -1467,7 +1467,7 @@ Minimal.
 Example:
 
 ```text
-FIELD                                      New task
+ServeAI                                      New task
 ```
 
 Optional:
@@ -1483,13 +1483,13 @@ Do not make the header visually dominant.
 # 24. Mobile Header
 
 ```text
-☰                  FIELD                sliders
+☰                  ServeAI                sliders
 ```
 
 or:
 
 ```text
-←                  FIELD                 •••
+←                  ServeAI                 •••
 ```
 
 depending on state.
@@ -1502,13 +1502,13 @@ The task itself is the hero.
 
 # 25. Brand Mark
 
-For the hackathon, use:
+Use the generated ServeAI symbol together with the wordmark:
 
 ```text
-FIELD
+ServeAI
 ```
 
-as a strong uppercase wordmark.
+as the primary mixed-case wordmark.
 
 Typography:
 
@@ -1516,15 +1516,15 @@ Typography:
 - weight 600;
 - slightly tightened tracking.
 
-Avoid spending engineering time on a complex logo.
+Keep the symbol visually quiet so the task remains the hero.
 
-A simple standalone:
+A standalone geometric:
 
 ```text
-F
+S
 ```
 
-inside a monochrome rounded square may be used for:
+formed by two connected paths inside a monochrome rounded square may be used for:
 
 - favicon;
 - app icon;
@@ -1651,7 +1651,7 @@ Implement these first:
 - [ ] Start screen
 - [ ] Chat shell
 - [ ] User message
-- [ ] FIELD response without bubble
+- [ ] ServeAI response without bubble
 - [ ] Composer
 - [ ] Parameter extraction component
 - [ ] AgentActivity component
@@ -1714,7 +1714,7 @@ Only after P0 works:
 
 # 33. Final UX Principle
 
-Every important moment in FIELD should fit into this framework:
+Every important moment in ServeAI should fit into this framework:
 
 ```text
 TALK
@@ -1740,13 +1740,13 @@ The user should feel that they did not merely receive information.
 
 They delegated a problem.
 
-FIELD handled it.
+ServeAI handled it.
 
 ---
 
 # 34. Final Brand Direction
 
-## FIELD
+## ServeAI
 
 **Say what you need. Consider it handled.**
 

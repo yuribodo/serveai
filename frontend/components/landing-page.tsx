@@ -68,21 +68,6 @@ export function LandingPage() {
     gsap.ticker.lagSmoothing(0);
 
     const context = gsap.context(() => {
-      const heroTimeline = gsap.timeline({ defaults: { ease: "power4.out" } });
-
-      heroTimeline
-        .from(".serve-nav", { autoAlpha: 0, y: -18, duration: 0.75 })
-        .from(".serve-kicker", { autoAlpha: 0, y: 14, duration: 0.65 }, "-=0.35")
-        .from(".serve-title-line > span", {
-          yPercent: 115,
-          duration: 1.05,
-          stagger: 0.1,
-        }, "-=0.45")
-        .from(".serve-intro", { autoAlpha: 0, y: 18, duration: 0.7 }, "-=0.48")
-        .from(".serve-command", { autoAlpha: 0, y: 22, scale: 0.98, duration: 0.75 }, "-=0.46")
-        .from(".serve-command-caption", { autoAlpha: 0, y: 8, duration: 0.5 }, "-=0.42")
-        .from(".serve-proof span", { autoAlpha: 0, y: 10, duration: 0.55, stagger: 0.07 }, "-=0.25");
-
       gsap.to(".serve-hero-content", {
         yPercent: 10,
         scale: 0.97,

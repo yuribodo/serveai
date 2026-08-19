@@ -852,6 +852,47 @@ html.lenis body { height: auto; }
 }
 .serve-proof span { display: inline-flex; align-items: center; gap: 6px; }
 
+/*
+ * Keep the initial reveal in CSS so its hidden state is present on the very
+ * first frame. A GSAP `from` animation only starts after hydration, which can
+ * briefly paint the finished hero before hiding it again on a cold load.
+ */
+.serve-nav { animation: serve-reveal-nav 550ms var(--ease-out) both; }
+.serve-kicker { animation: serve-reveal-up 500ms var(--ease-out) 180ms both; }
+.serve-title-line > span { animation: serve-reveal-title 850ms var(--ease-out) 260ms both; }
+.serve-title-line + .serve-title-line > span { animation-delay: 340ms; }
+.serve-intro { animation: serve-reveal-up 550ms var(--ease-out) 550ms both; }
+.serve-command { animation: serve-reveal-command 600ms var(--ease-out) 660ms both; }
+.serve-command-caption { animation: serve-reveal-caption 400ms var(--ease-out) 800ms both; }
+.serve-proof span { animation: serve-reveal-proof 450ms var(--ease-out) 920ms both; }
+.serve-proof span:nth-child(2) { animation-delay: 980ms; }
+.serve-proof span:nth-child(3) { animation-delay: 1040ms; }
+
+@keyframes serve-reveal-nav {
+  from { opacity: 0; visibility: hidden; transform: translateY(-18px); }
+  to { opacity: 1; visibility: visible; transform: translateY(0); }
+}
+@keyframes serve-reveal-up {
+  from { opacity: 0; visibility: hidden; transform: translateY(14px); }
+  to { opacity: 1; visibility: visible; transform: translateY(0); }
+}
+@keyframes serve-reveal-title {
+  from { transform: translateY(115%); }
+  to { transform: translateY(0); }
+}
+@keyframes serve-reveal-command {
+  from { opacity: 0; visibility: hidden; transform: translateY(22px) scale(.98); }
+  to { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+}
+@keyframes serve-reveal-caption {
+  from { opacity: 0; visibility: hidden; transform: translateY(8px); }
+  to { opacity: 1; visibility: visible; transform: translateY(0); }
+}
+@keyframes serve-reveal-proof {
+  from { opacity: 0; visibility: hidden; transform: translateY(10px); }
+  to { opacity: 1; visibility: visible; transform: translateY(0); }
+}
+
 .serve-how {
   padding: 0;
   overflow: clip;
@@ -985,4 +1026,19 @@ html.lenis body { height: auto; }
   .serve-final h2 { font-size: clamp(54px, 15vw, 76px); }
   .serve-final-content { padding: 74px var(--serve-gutter) 68px; }
   .serve-footer { min-height: 68px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .serve-nav,
+  .serve-kicker,
+  .serve-title-line > span,
+  .serve-intro,
+  .serve-command,
+  .serve-command-caption,
+  .serve-proof span {
+    animation: none;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
 }

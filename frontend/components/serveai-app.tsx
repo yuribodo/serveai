@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowUp, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
+  ArrowUp, ArrowUpRight, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
   KeyRound, LocateFixed, MapPin, Menu, MessageSquare, Mic,
   MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
   Settings, Star, UserRound, WalletCards, Wrench,
@@ -12,6 +12,7 @@ import {
   bookingResult, fieldFlowReducer, initialFlowState,
   type EditableField, type RequestLocation, type ServiceRequest,
 } from "@/lib/flow";
+import { buildGoogleCalendarUrl } from "@/lib/calendar";
 import { requestBrowserLocation, resolveLocationName } from "@/lib/location";
 import { getMicrophoneErrorMessage, mergeSpeechTranscript } from "@/lib/speech";
 
@@ -579,6 +580,13 @@ function WorkScreen({ originalRequest, request, phase, onAdjust }: { originalReq
 
 function ResultScreen({ originalRequest, request, onReset }: { originalRequest: string; request: ServiceRequest; onReset: () => void }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const calendarUrl = buildGoogleCalendarUrl({
+    title: `${request.service} — ${bookingResult.provider}`,
+    location: request.location,
+    description: `Serviço confirmado com ${bookingResult.provider}. Preço: ${bookingResult.price}.`,
+    date: new Date(),
+    startTime: bookingResult.arrival,
+  });
   return (
     <section className="conversation-screen result-screen stage-panel" aria-labelledby="result-title">
       <div className="conversation-thread">
@@ -593,7 +601,21 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
             <button className="booking-action pressable" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}><span><CalendarDays size={16} />Ver compromisso</span><ChevronDown className={detailsOpen ? "is-rotated" : ""} size={17} /></button>
             {detailsOpen && <div className="appointment-details"><span><CalendarDays size={16} /><span><small>DATA E HORÁRIO</small>Hoje · 15:30–16:30</span></span><span><MapPin size={16} /><span><small>LOCAL</small>{request.location}</span></span></div>}
           </article>
-          <div className="confirmation-card"><span><Check size={15} /></span><div><strong>Tudo certo por aqui.</strong><p>Compromisso adicionado ao Google Calendar e confirmação enviada ao profissional.</p></div></div>
+          <div className="confirmation-card">
+            <span><Check size={15} /></span>
+            <div className="confirmation-content">
+              <strong>Agendamento confirmado.</strong>
+              <p>A confirmação foi enviada ao profissional.</p>
+            </div>
+          </div>
+          <a className="calendar-button pressable" href={calendarUrl} target="_blank" rel="noreferrer">
+            <span className="calendar-app-icon" aria-hidden="true"><img src="/google-calendar.svg" alt="" /></span>
+            <span className="calendar-button-copy">
+              <strong>Adicionar ao Google Calendar</strong>
+              <small>Hoje, 15:30–16:30 · pronto para salvar</small>
+            </span>
+            <ArrowUpRight className="calendar-button-arrow" size={17} strokeWidth={1.9} aria-hidden="true" />
+          </a>
         </AgentMessage>
       </div>
       <ComposerDock><button className="new-request-cta pressable" type="button" onClick={onReset}><Plus size={17} />Fazer nova solicitação</button></ComposerDock>

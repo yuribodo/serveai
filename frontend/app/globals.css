@@ -640,14 +640,40 @@ textarea { resize: none; }
 .appointment-details small { display: block; margin-bottom: 3px; color: var(--tertiary); font-size: 7px; font-weight: 650; letter-spacing: .07em; }
 .confirmation-card { margin-top: 9px; padding: 12px; display: flex; gap: 9px; border: 1px solid #d8ebe0; border-radius: 12px; background: #f4fbf7; }
 .confirmation-card > span { width: 25px; height: 25px; flex: 0 0 25px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--success); }
+.confirmation-content { min-width: 0; flex: 1; }
 .confirmation-card strong { font-size: 10px; font-weight: 590; }
 .confirmation-card p { margin: 3px 0 0; color: #5d7367; font-size: 8px; line-height: 1.45; }
+.calendar-button {
+  width: 100%;
+  min-height: 62px;
+  margin-top: 9px;
+  padding: 9px 15px 9px 10px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid #0849b7;
+  border-radius: 12px;
+  color: #fff;
+  background: #0b57d0;
+  box-shadow: 0 2px 4px rgb(11 87 208 / 18%);
+  text-decoration: none;
+  transition: transform 150ms var(--ease-out), background-color 160ms ease, box-shadow 160ms ease;
+}
+.calendar-app-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgb(1 34 87 / 24%); }
+.calendar-app-icon img { width: 31px; height: 31px; display: block; }
+.calendar-button-copy { min-width: 0; }
+.calendar-button-copy strong { display: block; font-size: 11px; font-weight: 630; letter-spacing: -.005em; }
+.calendar-button-copy small { display: block; margin-top: 4px; overflow: hidden; color: rgb(255 255 255 / 72%); font-size: 8.5px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-button-arrow { color: rgb(255 255 255 / 72%); transition: transform 150ms var(--ease-out), color 150ms ease; }
 .new-request-cta { width: 100%; min-height: 49px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: 14px; background: var(--background); font-size: 11px; font-weight: 540; cursor: pointer; }
 
 @media (hover: hover) and (pointer: fine) {
   .icon-button:hover, .sidebar-footer-item:hover, .account-button:hover, .history-item:hover, .composer-icon:hover { background: var(--surface-hover); }
   .new-chat-button:hover, .header-new-chat:hover, .suggestion-card:hover, .option-chip:hover, .edit-parameter:hover { background: var(--surface); }
   .suggestion-card:hover .suggestion-arrow { color: var(--foreground); }
+  .calendar-button:hover { background: #0849b7; box-shadow: 0 4px 10px rgb(11 87 208 / 24%); }
+  .calendar-button:hover .calendar-button-arrow { transform: translate(1px, -1px); color: #fff; }
 }
 
 @media (max-width: 900px) {

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowUp, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
+  ArrowUp, ArrowUpRight, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
   KeyRound, LocateFixed, MapPin, Menu, MessageSquare, Mic,
   MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
   Settings, Star, UserRound, WalletCards, Wrench,
@@ -605,12 +605,17 @@ function ResultScreen({ originalRequest, request, onReset }: { originalRequest: 
             <span><Check size={15} /></span>
             <div className="confirmation-content">
               <strong>Agendamento confirmado.</strong>
-              <p>A confirmação foi enviada ao profissional. Adicione o compromisso ao seu calendário para não esquecer.</p>
-              <a className="calendar-button pressable" href={calendarUrl} target="_blank" rel="noreferrer">
-                <CalendarDays size={15} />Adicionar ao Google Calendar
-              </a>
+              <p>A confirmação foi enviada ao profissional.</p>
             </div>
           </div>
+          <a className="calendar-button pressable" href={calendarUrl} target="_blank" rel="noreferrer">
+            <span className="calendar-app-icon" aria-hidden="true"><CalendarDays size={19} strokeWidth={1.8} /></span>
+            <span className="calendar-button-copy">
+              <strong>Adicionar ao Google Calendar</strong>
+              <small>Hoje · 15:30–16:30 · evento pré-preenchido</small>
+            </span>
+            <span className="calendar-button-arrow" aria-hidden="true"><ArrowUpRight size={15} strokeWidth={1.8} /></span>
+          </a>
         </AgentMessage>
       </div>
       <ComposerDock><button className="new-request-cta pressable" type="button" onClick={onReset}><Plus size={17} />Fazer nova solicitação</button></ComposerDock>

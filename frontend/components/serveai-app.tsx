@@ -2,7 +2,7 @@
 
 import {
   ArrowUp, ArrowUpRight, CalendarDays, Check, ChevronDown, Circle, CircleDashed, Clock3,
-  KeyRound, LocateFixed, MapPin, Menu, MessageSquare, Mic,
+  ChevronLeft, ChevronRight, History, KeyRound, LayoutDashboard, LocateFixed, MapPin, Menu, MessageSquare, Mic,
   MoreHorizontal, Paperclip, PanelLeftClose, PencilLine, Plus, Search,
   Settings, Star, UserRound, WalletCards, Wrench,
 } from "lucide-react";
@@ -66,7 +66,14 @@ function BrandMark() {
   );
 }
 
-function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => void; onReset: () => void }) {
+function Sidebar({ open, view, onClose, onReset, onOpenDashboard, onOpenChat }: {
+  open: boolean;
+  view: "chat" | "dashboard";
+  onClose: () => void;
+  onReset: () => void;
+  onOpenDashboard: () => void;
+  onOpenChat: () => void;
+}) {
   return (
     <>
       <button className={`sidebar-backdrop ${open ? "is-visible" : ""}`} type="button" onClick={onClose} aria-label="Fechar menu" tabIndex={open ? 0 : -1} />
@@ -84,9 +91,16 @@ function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => voi
           <Plus size={17} strokeWidth={1.8} /><span>Nova solicitação</span><kbd>⌘ K</kbd>
         </button>
 
+        <nav className="sidebar-primary" aria-label="Área pessoal">
+          <button className={`sidebar-primary-item pressable ${view === "dashboard" ? "is-active" : ""}`} type="button" onClick={onOpenDashboard} aria-current={view === "dashboard" ? "page" : undefined}>
+            <LayoutDashboard size={16} strokeWidth={1.7} /><span>Painel</span>
+            <span className="sidebar-count" aria-label="2 itens em andamento">2</span>
+          </button>
+        </nav>
+
         <nav className="sidebar-nav" aria-label="Conversas recentes">
           <p>Recentes</p>
-          <button className="history-item is-active" type="button">
+          <button className={`history-item ${view === "chat" ? "is-active" : ""}`} type="button" onClick={onOpenChat} aria-current={view === "chat" ? "page" : undefined}>
             <MessageSquare size={15} strokeWidth={1.6} /><span>Chaveiro em Pinheiros</span><MoreHorizontal className="history-more" size={16} strokeWidth={1.7} />
           </button>
           <button className="history-item" type="button"><MessageSquare size={15} strokeWidth={1.6} /><span>Manutenção do ar-condicionado</span></button>
@@ -102,6 +116,156 @@ function Sidebar({ open, onClose, onReset }: { open: boolean; onClose: () => voi
         </div>
       </aside>
     </>
+  );
+}
+
+const calendarDays = [
+  { day: 27, outside: true }, { day: 28, outside: true }, { day: 29, outside: true }, { day: 30, outside: true }, { day: 31, outside: true },
+  { day: 1 }, { day: 2 }, { day: 3 }, { day: 4 }, { day: 5 }, { day: 6 }, { day: 7 }, { day: 8 }, { day: 9 },
+  { day: 10 }, { day: 11 }, { day: 12 }, { day: 13 }, { day: 14 }, { day: 15 }, { day: 16 }, { day: 17 }, { day: 18 },
+  { day: 19, today: true }, { day: 20 }, { day: 21, event: true }, { day: 22 }, { day: 23 }, { day: 24 }, { day: 25 },
+  { day: 26, event: true }, { day: 27 }, { day: 28 }, { day: 29 }, { day: 30 }, { day: 31 }, { day: 1, outside: true },
+  { day: 2, outside: true }, { day: 3, outside: true }, { day: 4, outside: true }, { day: 5, outside: true }, { day: 6, outside: true },
+];
+
+function DashboardHeader({ onOpenMenu, onReset }: { onOpenMenu: () => void; onReset: () => void }) {
+  return (
+    <header className="chat-header dashboard-header">
+      <div className="chat-header-left">
+        <button className="icon-button mobile-menu pressable" type="button" onClick={onOpenMenu} aria-label="Abrir menu"><Menu size={20} strokeWidth={1.7} /></button>
+        <div className="chat-title"><strong>Painel</strong></div>
+      </div>
+      <button className="header-new-chat pressable" type="button" onClick={onReset}><Plus size={17} strokeWidth={1.8} /><span>Nova solicitação</span></button>
+    </header>
+  );
+}
+
+function DashboardScreen({ onOpenChat, onNewRequest }: { onOpenChat: () => void; onNewRequest: () => void }) {
+  const [selectedDay, setSelectedDay] = useState(21);
+  const selectedWeekday = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"][(selectedDay + 5) % 7];
+  const appointments: Record<number, { title: string; category: string; provider: string; initials: string; time: string; period: string; location: string }> = {
+    21: { title: "Troca de fechadura", category: "Chaveiro", provider: "Carlos Mendes", initials: "CM", time: "14:00", period: "14:00–15:00", location: "Pinheiros, São Paulo" },
+    26: { title: "Manutenção preventiva", category: "Ar-condicionado", provider: "Refrigeração Almeida", initials: "RA", time: "09:30", period: "09:30–11:00", location: "Pinheiros, São Paulo" },
+  };
+  const selectedAppointment = appointments[selectedDay];
+
+  return (
+    <section className="dashboard-screen">
+      <div className="dashboard-heading">
+        <div>
+          <p className="dashboard-eyebrow">QUARTA-FEIRA, 19 DE AGOSTO</p>
+          <h1>Olá, Mario</h1>
+          <p>Acompanhe seus serviços, compromissos e buscas em um só lugar.</p>
+        </div>
+        <button className="dashboard-new-button pressable" type="button" onClick={onNewRequest}><Plus size={16} />Pedir um serviço</button>
+      </div>
+
+      <div className="dashboard-summary" aria-label="Resumo dos serviços">
+        <div><span className="summary-icon is-green"><CalendarDays size={16} /></span><span><small>Próximo serviço</small><strong>Sexta, 14:00</strong></span></div>
+        <div><span className="summary-icon is-amber"><Search size={16} /></span><span><small>Buscas em andamento</small><strong>2 solicitações</strong></span></div>
+        <div><span className="summary-icon"><Check size={16} /></span><span><small>Serviços concluídos</small><strong>8 este ano</strong></span></div>
+      </div>
+
+      <div className="dashboard-layout">
+        <div className="dashboard-main-column">
+          <section className="dashboard-section calendar-section" aria-labelledby="agenda-title">
+            <div className="dashboard-section-heading">
+              <div><h2 id="agenda-title">Agenda</h2><p>Seus próximos compromissos</p></div>
+              <button className="text-button pressable" type="button">Ver agenda completa <ArrowUpRight size={14} /></button>
+            </div>
+            <div className="calendar-shell">
+              <div className="mini-calendar">
+                <div className="calendar-toolbar">
+                  <strong>Agosto 2026</strong>
+                  <span><button className="calendar-arrow pressable" type="button" aria-label="Mês anterior"><ChevronLeft size={15} /></button><button className="calendar-arrow pressable" type="button" aria-label="Próximo mês"><ChevronRight size={15} /></button></span>
+                </div>
+                <div className="calendar-weekdays" aria-hidden="true">{["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => <span key={day}>{day}</span>)}</div>
+                <div className="calendar-grid">
+                  {calendarDays.map((date, index) => (
+                    <button
+                      className={`calendar-day ${date.outside ? "is-outside" : ""} ${date.today ? "is-today" : ""} ${!date.outside && selectedDay === date.day ? "is-selected" : ""} ${date.event ? "has-event" : ""}`}
+                      type="button"
+                      key={`${date.day}-${index}`}
+                      disabled={date.outside}
+                      onClick={() => setSelectedDay(date.day)}
+                      aria-label={`${date.day} de ${date.outside ? "outro mês" : "agosto"}${date.event ? ", possui compromisso" : ""}`}
+                    >{date.day}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="selected-agenda">
+                <div className="selected-date"><span><strong>{selectedDay}</strong><small>{selectedWeekday}</small></span><p>{selectedAppointment ? "1 compromisso" : "Agenda livre"}</p></div>
+                {selectedAppointment ? (
+                  <article className="appointment-item">
+                    <div className="appointment-card-header"><span className="status-label is-confirmed"><i /> Confirmado</span><button className="appointment-more" type="button" aria-label="Mais opções"><MoreHorizontal size={17} /></button></div>
+                    <h3>{selectedAppointment.title}</h3>
+                    <div className="appointment-schedule"><span><Clock3 size={14} /></span><div><strong>{selectedAppointment.period}</strong><small>{selectedWeekday}, {selectedDay} de agosto</small></div></div>
+                    <div className="appointment-provider"><span>{selectedAppointment.initials}</span><div><strong>{selectedAppointment.provider}</strong><small>{selectedAppointment.category}</small></div></div>
+                    <div className="appointment-card-footer"><span><MapPin size={12} />{selectedAppointment.location}</span><ChevronRight size={14} /></div>
+                  </article>
+                ) : (
+                  <div className="empty-day"><CalendarDays size={18} /><strong>Nenhum compromisso</strong><p>Você não tem serviços marcados para este dia.</p></div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="dashboard-section history-section" aria-labelledby="history-title">
+            <div className="dashboard-section-heading">
+              <div><h2 id="history-title">Serviços recentes</h2><p>Profissionais que já ajudaram você</p></div>
+              <button className="text-button pressable" type="button">Ver todos <ChevronRight size={14} /></button>
+            </div>
+            <div className="service-history-list">
+              <article className="service-history-row">
+                <span className="provider-avatar">CM</span><div><h3>Troca de fechadura</h3><p>Carlos Mendes · Chaveiro</p></div><time>12 ago</time><span className="history-status"><Check size={12} /> Concluído</span><button type="button" className="row-action pressable">Pedir novamente</button>
+              </article>
+              <article className="service-history-row">
+                <span className="provider-avatar is-gray">RA</span><div><h3>Manutenção do ar-condicionado</h3><p>Refrigeração Almeida</p></div><time>28 jul</time><span className="history-status"><Check size={12} /> Concluído</span><button type="button" className="row-action pressable">Pedir novamente</button>
+              </article>
+              <article className="service-history-row">
+                <span className="provider-avatar is-dark">JL</span><div><h3>Reparo de vazamento</h3><p>João Lima · Encanador</p></div><time>03 jun</time><span className="history-status"><Check size={12} /> Concluído</span><button type="button" className="row-action pressable">Pedir novamente</button>
+              </article>
+            </div>
+          </section>
+        </div>
+
+        <aside className="dashboard-side-column" aria-label="Solicitações em andamento">
+          <div className="side-column-heading"><div><span className="live-indicator"><i /></span><h2>Em andamento</h2></div><span>2</span></div>
+          <article className="progress-card is-ai-working">
+            <div className="progress-card-top"><span className="request-symbol"><Wrench size={15} /></span><span className="progress-pill"><span className="live-pulse" /> IA trabalhando</span></div>
+            <h3>Encanador para vazamento</h3><p><MapPin size={11} /> Vila Madalena <i /> Para hoje</p>
+            <div className="ai-work-surface">
+              <div className="ai-work-head">
+                <span className="ai-brand"><BrandMark /></span>
+                <div><strong>ServeAI está cuidando disso</strong><small>Trabalhando em segundo plano</small></div>
+              </div>
+              <div className="ai-task-feed">
+                <span className="ai-task-spinner"><Search size={13} /></span>
+                <div><small>FAZENDO AGORA</small><strong>Comparando preço, prazo e avaliações</strong></div>
+              </div>
+              <div className="ai-checks">
+                <span><Check size={11} /> 12 profissionais mapeados</span>
+                <span><Check size={11} /> 4 disponíveis hoje</span>
+              </div>
+            </div>
+            <div className="ai-card-meta"><span><i /> Atualizado agora</span><small>4 opções em análise</small></div>
+            <button className="open-chat-button pressable" type="button" onClick={onOpenChat}>Abrir conversa <ArrowUpRight size={14} /></button>
+          </article>
+          <article className="progress-card is-awaiting-choice">
+            <div className="progress-card-top"><span className="request-symbol"><Wrench size={15} /></span><span className="progress-pill is-ready"><Check size={11} /> Análise pronta</span></div>
+            <h3>Instalação de luminária</h3><p><MapPin size={11} /> Pinheiros <i /> Amanhã</p>
+            <div className="ai-recommendation-label"><BrandMark /><span><strong>A IA comparou 3 propostas</strong><small>Preço, avaliação e disponibilidade</small></span></div>
+            <div className="recommended-provider">
+              <span className="recommended-avatar">RM</span>
+              <div><strong>Ricardo Martins</strong><small>Melhor combinação · 4,9 ★</small></div>
+              <span className="recommended-price">R$ 180</span>
+            </div>
+            <button className="open-chat-button pressable" type="button" onClick={onOpenChat}>Ver propostas <ArrowUpRight size={14} /></button>
+          </article>
+          <button className="all-requests-button pressable" type="button"><History size={15} /> Ver todas as solicitações</button>
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -718,6 +882,7 @@ export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string })
   const [state, dispatch] = useReducer(fieldFlowReducer, initialFlowState);
   const [activityPhase, setActivityPhase] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [view, setView] = useState<"chat" | "dashboard">("chat");
   const initialMessageHandled = useRef(false);
 
   useEffect(() => {
@@ -746,17 +911,27 @@ export function ServeAIApp({ initialMessage = "" }: { initialMessage?: string })
       : state.request.location
         ? `Chaveiro em ${state.request.location}`
         : "Solicitação de chaveiro";
-  const reset = () => { dispatch({ type: "RESET" }); setSidebarOpen(false); };
+  const reset = () => { dispatch({ type: "RESET" }); setView("chat"); setSidebarOpen(false); };
+  const openDashboard = () => { setView("dashboard"); setSidebarOpen(false); };
+  const openChat = () => { setView("chat"); setSidebarOpen(false); };
 
   return (
     <div className="serveai-app">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onReset={reset} />
+      <Sidebar open={sidebarOpen} view={view} onClose={() => setSidebarOpen(false)} onReset={reset} onOpenDashboard={openDashboard} onOpenChat={openChat} />
       <div className="chat-shell">
-        <ChatHeader stage={state.stage} title={chatTitle} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
+        {view === "dashboard"
+          ? <DashboardHeader onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />
+          : <ChatHeader stage={state.stage} title={chatTitle} onOpenMenu={() => setSidebarOpen(true)} onReset={reset} />}
         <main className="app-main">
-          <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
-          {state.stage === "start" && <StartScreen onStart={(message, location) => dispatch({ type: "START_REQUEST", message, location })} />}
-          {state.stage !== "start" && <ActiveRequestScreen stage={state.stage} originalRequest={state.originalRequest} request={state.request} phase={activityPhase} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onUpdateLocation={(location) => dispatch({ type: "UPDATE_LOCATION", location })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })} onReset={reset} />}
+          {view === "dashboard" ? (
+            <DashboardScreen onOpenChat={openChat} onNewRequest={reset} />
+          ) : (
+            <>
+              <span className="sr-only" aria-live="polite">Etapa atual: {stageLabel}</span>
+              {state.stage === "start" && <StartScreen onStart={(message, location) => dispatch({ type: "START_REQUEST", message, location })} />}
+              {state.stage !== "start" && <ActiveRequestScreen stage={state.stage} originalRequest={state.originalRequest} request={state.request} phase={activityPhase} onUpdate={(field, value) => dispatch({ type: "UPDATE_FIELD", field, value })} onUpdateLocation={(location) => dispatch({ type: "UPDATE_LOCATION", location })} onBegin={() => dispatch({ type: "BEGIN_WORK" })} onAdjust={() => dispatch({ type: "RETURN_TO_COLLECTION" })} onReset={reset} />}
+            </>
+          )}
         </main>
       </div>
     </div>
